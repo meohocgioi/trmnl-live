@@ -58,6 +58,8 @@ const COMMANDS = [
   { command: 'remove', description: '➖ Xoá người theo dõi' },
   { command: 'settings', description: '⚙️ Cài đặt' },
   { command: 'trmnl', description: '🖼 Link Polling URL cho TRMNL' },
+  { command: 'update', description: '🔄 Cập nhật code mới nhất từ GitHub' },
+  { command: 'version', description: '🏷 Phiên bản đang chạy' },
   { command: 'help', description: '❓ Hướng dẫn' },
 ];
 
@@ -69,7 +71,17 @@ export async function setupWebhook(env, origin) {
     allowed_updates: ['message', 'callback_query'],
   });
   const commands = await tg(env, 'setMyCommands', { commands: COMMANDS });
-  return { ok: !!webhook.ok, webhook, commands };
+
+  // Báo chủ bot khi vừa cập nhật phiên bản mới
+  let notified = false;
+  const cfg = await getConfig(env);
+  const owner = env.TELEGRAM_OWNER_ID || cfg.ownerId;
+  if (owner && env.VERSION && (await env.KV.get('notifiedVersion')) !== env.VERSION) {
+    await sendMsg(env, owner, `✅ <b>Đã cập nhật xong!</b>\n🏷 Phiên bản <code>${esc(env.VERSION)}</code>\n📝 ${esc(env.VERSION_MSG || '')}`, MAIN_KB);
+    await env.KV.put('notifiedVersion', env.VERSION);
+    notified = true;
+  }
+  return { ok: !!webhook.ok, version: env.VERSION || null, notified, webhook, commands };
 }
 
 // ---------- Nội dung tin nhắn ----------
@@ -173,7 +185,9 @@ const HELP =
   `/remove tên – xoá người\n` +
   `/list – danh sách\n` +
   `/settings – tần suất, kiểu ảnh, thông báo\n` +
-  `/trmnl – link Polling URL cho TRMNL`;
+  `/trmnl – link Polling URL cho TRMNL\n` +
+  `/update – cập nhật code mới nhất từ GitHub (chỉ khi bạn bấm)\n` +
+  `/version – phiên bản đang chạy`;
 
 async function sendLivePhotos(env, chatId, st, names) {
   for (const n of names) {
@@ -349,6 +363,31 @@ async function processUpdate(env, upd, origin, dedupKey) {
       cfg.users = cfg.users.filter((x) => x !== id);
       await saveConfig(env, cfg);
       return sendMsg(env, chatId, `🗑 Đã xoá ${idInfo(id).P.icon} <b>${esc(idInfo(id).display)}</b>.`, MAIN_KB);
+    }
+    case '/version':
+      return sendMsg(env, chatId,
+        `🏷 Phiên bản đang chạy: <code>${esc(env.VERSION || 'chưa rõ')}</code>\n📝 ${esc(env.VERSION_MSG || '')}`);
+    case '/update': {
+      if (!env.GH_TOKEN) {
+        return sendMsg(env, chatId,
+          '⚠️ Chưa có quyền cập nhật.\nThêm secret <code>GH_TOKEN</code> (GitHub token, quyền <b>Actions: Read and write</b> cho repo trmnl-live) rồi chạy <b>Deploy Worker</b> 1 lần trên GitHub.');
+      }
+      await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
+      const r = await fetch(`https://api.github.com/repos/${env.GH_REPO || 'meohocgioi/trmnl-live'}/actions/workflows/deploy.yml/dispatches`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${env.GH_TOKEN}`,
+          accept: 'application/vnd.github+json',
+          'user-agent': 'trmnl-live-bot',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ ref: 'main' }),
+      });
+      if (r.status !== 204) {
+        return sendMsg(env, chatId, `❌ Không gọi được GitHub (HTTP ${r.status}).\n<code>${esc((await r.text()).slice(0, 300))}</code>`);
+      }
+      return sendMsg(env, chatId,
+        `🔄 <b>Đang cập nhật…</b>\nĐang chạy: <code>${esc(env.VERSION || '?')}</code>\nKhoảng 1 phút nữa bot sẽ báo ✅ khi xong.`);
     }
     case '/trmnl':
       return sendMsg(

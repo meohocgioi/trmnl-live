@@ -39,7 +39,7 @@ export async function checkLive(handle, env) {
       out.live = h.includes('"isLiveNow":true');
       out.upcoming = !out.live && h.includes('"isUpcoming":true');
       out.title = unHtml(between(h, '<meta property="og:title" content="', '"'));
-      out.nickname = unJson(between(h, '"ownerChannelName":"', '"'));
+      out.nickname = unJson(between(h, '"ownerChannelName":"', '"')) || unJson(between(h, '"author":"', '"'));
     } else {
       // Trang kênh (không live) — hoặc bố cục khác: tìm video đang có người xem
       out.nickname = unHtml(between(h, '<meta property="og:title" content="', '"'));

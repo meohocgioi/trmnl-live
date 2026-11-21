@@ -7,7 +7,7 @@ Plugin TRMNL hiện trạng thái live của các tài khoản **TikTok, YouTube
 - Tối đa 3 người hiện cạnh nhau trên màn hình (ưu tiên người đang live).
 - Điều khiển bằng bot Telegram, báo tin khi ai đó bắt đầu / kết thúc live.
 
-Chạy hoàn toàn trên **Cloudflare Workers** (không cần máy chủ). Mỗi lần push lên nhánh `main`, GitHub Actions tự deploy.
+Chạy hoàn toàn trên **Cloudflare Workers** (không cần máy chủ). Code mới chỉ được deploy khi bấm **/update** trên Telegram (hoặc *Run workflow* trên GitHub) — không tự động, không kiểm tra định kỳ.
 
 ## Cài đặt (1 lần)
 
@@ -27,6 +27,7 @@ Repo → *Settings → Secrets and variables → Actions → New repository secr
 | `TELEGRAM_BOT_TOKEN` | token từ @BotFather | cho bot |
 | `TELEGRAM_OWNER_ID` | Telegram user ID của bạn | không (nếu bỏ trống, người đầu tiên bấm /start là chủ) |
 | `TIKTOK_COOKIE` | cookie TikTok (nếu phòng live yêu cầu đăng nhập) | không |
+| `GH_TOKEN` | GitHub fine-grained token, quyền **Actions: Read and write** cho repo này (để /update chạy được) | cho /update |
 | `FACEBOOK_COOKIE` | cookie Facebook (bắt buộc nếu theo dõi Facebook; nên dùng tài khoản phụ) | cho Facebook |
 
 Sau đó vào tab **Actions → Deploy Worker → Run workflow**.
