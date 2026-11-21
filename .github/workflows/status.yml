@@ -1,0 +1,17 @@
+name: Check status
+
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Worker health + dữ liệu TRMNL
+        run: |
+          URL=https://trmnl-live.meohocgioi.workers.dev
+          echo "== /health"; curl -s "$URL/health"; echo
+          echo "== /trmnl"; curl -s "$URL/trmnl"; echo
+          for u in $(curl -s "$URL/trmnl" | grep -oE '"user": "[^"]+"' | cut -d'"' -f4); do
+            echo "== /img/shot/$u -> $(curl -s -o /dev/null -w '%{http_code} %{content_type} %{size_download}B' "$URL/img/shot/$u")"
+          done
