@@ -1,6 +1,6 @@
 // Bot Telegram điều khiển plugin (chỉ chủ bot dùng được)
 import { runCheck } from './check.js';
-import { getConfig, saveConfig, getState, getImage } from './store.js';
+import { getConfig, saveConfig, getState, getImage, MAX_USERS } from './store.js';
 import { parseEntry, idInfo, splitId } from './platforms.js';
 import { fmtTime, fmtDur, esc } from './util.js';
 import { trmnlPreview } from './trmnl.js';
@@ -159,28 +159,42 @@ function settingsView(cfg) {
   return { text, kb };
 }
 
-function listView(cfg) {
+function listView(cfg, st) {
   const rows = cfg.users.map((id, i) => {
     const I = idInfo(id);
-    return `${i + 1}. ${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a> · ${I.P.name}`;
+    const u = st?.users?.[id] || {};
+    const dot = u.unknown ? '❓' : u.live ? '🔴' : '⚫';
+    return `${i + 1}. ${dot} ${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a> · ${I.P.name}`;
   });
   const text =
-    `<b>👥 Đang theo dõi (${cfg.users.length})</b>\n\n` +
+    `<b>👥 Đang theo dõi (${cfg.users.length}/${MAX_USERS})</b>\n\n` +
     (rows.join('\n') || '<i>Trống</i>') +
-    `\n\n➕ Thêm: dán link vào <code>/add</code>, ví dụ:\n` +
-    `<code>/add https://www.tiktok.com/@abc</code>\n` +
-    `<code>/add https://www.youtube.com/@abc</code>\n` +
-    `<code>/add https://www.facebook.com/abc</code>\n` +
-    `hoặc gõ tắt <code>/add tt abc</code> · <code>/add yt abc</code> · <code>/add fb abc</code>\n` +
-    `<i>TRMNL hiện tối đa 3 người cạnh nhau (ưu tiên người đang live).</i>`;
+    `\n\n🗑 Bấm <b>Xoá</b> cạnh tên để bỏ theo dõi.\n` +
+    (cfg.users.length < MAX_USERS
+      ? `➕ Thêm: <code>/add link</code> (TikTok / YouTube / Facebook) hoặc <code>/add yt tên</code> · <code>/add fb tên</code> · <code>/add tt tên</code>`
+      : `<i>Đã đủ ${MAX_USERS} người — xoá bớt để thêm người mới.</i>`);
   const kb = [
     ...cfg.users.map((id) => {
       const I = idInfo(id);
-      return [{ text: `❌ Xoá ${I.P.icon} ${I.display}`, callback_data: 'rm:' + id }];
+      return [
+        { text: `${I.P.icon} ${I.display}`, url: I.liveUrl },
+        { text: '🗑 Xoá', callback_data: 'rmask:' + id },
+      ];
     }),
     ...BACK_KB,
   ];
   return { text, kb };
+}
+
+function confirmRemoveView(id) {
+  const I = idInfo(id);
+  return {
+    text: `🗑 Bỏ theo dõi ${I.P.icon} <b>${esc(I.display)}</b> (${I.P.name})?`,
+    kb: [[
+      { text: '✅ Xoá', callback_data: 'rm:' + id },
+      { text: '↩️ Huỷ', callback_data: 'list' },
+    ]],
+  };
 }
 
 const HELP =
@@ -238,10 +252,10 @@ async function doPreview(env, chatId, all) {
     const imgs = await trmnlPreview(env, views);
     const cfg = await getConfig(env);
     const st = await getState(env);
-    const lines = cfg.users.slice(0, 6).map((id) => {
+    const lines = cfg.users.slice(0, MAX_USERS).map((id) => {
       const s = st.users[id] || {};
       const I = idInfo(id);
-      return `${s.unknown ? '❓' : s.live ? '🔴' : '⚫'} ${I.P.icon} ${esc(I.display)}`;
+      return `${s.unknown ? '❓' : s.live ? '🔴' : '⚫'} ${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a>`;
     });
     for (let i = 0; i < imgs.length; i++) {
       const im = imgs[i];
@@ -348,16 +362,24 @@ async function processUpdate(env, upd, origin, dedupKey) {
       await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
       return doPreview(env, chatId, false);
     }
-    if (data === 'list') { const v = listView(cfg); return editOrSend(env, chatId, msgId, v.text, v.kb); }
+    if (data === 'list') { const v = listView(cfg, await getState(env)); return editOrSend(env, chatId, msgId, v.text, v.kb); }
+    if (data.startsWith('rmask:')) {
+      const id = data.slice(6);
+      if (!cfg.users.includes(id)) { const v = listView(cfg, await getState(env)); return editOrSend(env, chatId, msgId, v.text, v.kb); }
+      const v = confirmRemoveView(id);
+      return editOrSend(env, chatId, msgId, v.text, v.kb);
+    }
     if (data === 'settings') { const v = settingsView(cfg); return editOrSend(env, chatId, msgId, v.text, v.kb); }
     if (data.startsWith('int:')) cfg.intervalMin = Number(data.slice(4));
     else if (data.startsWith('mode:')) cfg.shotMode = data.slice(5) === 'cover' ? 'cover' : 'screen';
     else if (data === 'notify') cfg.notify = !cfg.notify;
     else if (data.startsWith('rm:')) {
-      cfg.users = cfg.users.filter((u) => u !== data.slice(3));
+      const id = data.slice(3);
+      cfg.users = cfg.users.filter((u) => u !== id);
       await saveConfig(env, cfg);
-      const v = listView(cfg);
-      return editOrSend(env, chatId, msgId, v.text, v.kb);
+      await tg(env, 'answerCallbackQuery', { callback_query_id: cq.id, text: `Đã xoá ${idInfo(id).display}` }).catch(() => {});
+      const v = listView(cfg, await getState(env));
+      return editOrSend(env, chatId, msgId, `✅ Đã xoá ${idInfo(id).P.icon} <b>${esc(idInfo(id).display)}</b>\n\n` + v.text, v.kb);
     } else return;
     await saveConfig(env, cfg);
     const v = settingsView(cfg);
@@ -385,7 +407,7 @@ async function processUpdate(env, upd, origin, dedupKey) {
       await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
       return doShot(env, chatId, only);
     }
-    case '/list': { const v = listView(cfg); return sendMsg(env, chatId, v.text, v.kb); }
+    case '/list': { const v = listView(cfg, await getState(env)); return sendMsg(env, chatId, v.text, v.kb); }
     case '/settings': { const v = settingsView(cfg); return sendMsg(env, chatId, v.text, v.kb); }
     case '/add': {
       const e = parseEntry(arg);
@@ -396,6 +418,10 @@ async function processUpdate(env, upd, origin, dedupKey) {
       }
       const I = idInfo(e.id);
       if (cfg.users.includes(e.id)) return sendMsg(env, chatId, `ℹ️ ${I.P.icon} ${esc(I.display)} đã có trong danh sách.`);
+      if (cfg.users.length >= MAX_USERS) {
+        const v = listView(cfg, await getState(env));
+        return sendMsg(env, chatId, `⚠️ Đã đủ <b>${MAX_USERS}</b> người (tối đa trên TRMNL). Xoá bớt 1 người rồi thêm lại nhé.\n\n` + v.text, v.kb);
+      }
       cfg.users.push(e.id);
       await saveConfig(env, cfg);
       await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
@@ -410,8 +436,8 @@ async function processUpdate(env, upd, origin, dedupKey) {
     case '/remove': {
       const id = arg ? findId(cfg, arg) : null;
       if (!id) {
-        const v = listView(cfg);
-        return sendMsg(env, chatId, '⚠️ Chọn người cần xoá:\n\n' + v.text, v.kb);
+        const v = listView(cfg, await getState(env));
+        return sendMsg(env, chatId, '👇 Chọn người cần xoá:\n\n' + v.text, v.kb);
       }
       cfg.users = cfg.users.filter((x) => x !== id);
       await saveConfig(env, cfg);

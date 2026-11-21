@@ -3,6 +3,7 @@ import { getConfig, getState, getImage } from './store.js';
 import { handleTelegram, setupWebhook } from './telegram.js';
 import { fmtTime, fmtDateTime } from './util.js';
 import { idInfo } from './platforms.js';
+import { MAX_USERS } from './store.js';
 
 const json = (o, status = 200) =>
   new Response(JSON.stringify(o, null, 2), {
@@ -15,7 +16,7 @@ async function trmnlPayload(env, origin) {
   const cfg = await getConfig(env);
   const st = await getState(env);
   let list = cfg.users.map((id) => ({ id, s: st.users[id] || {} }));
-  if (list.length > 3) list = [...list].sort((a, b) => (b.s.live ? 1 : 0) - (a.s.live ? 1 : 0)).slice(0, 3);
+  if (list.length > MAX_USERS) list = [...list].sort((a, b) => (b.s.live ? 1 : 0) - (a.s.live ? 1 : 0)).slice(0, MAX_USERS);
 
   const users = list.map(({ id, s }) => {
     const I = idInfo(id);

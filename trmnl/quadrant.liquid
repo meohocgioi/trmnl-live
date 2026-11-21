@@ -1,18 +1,27 @@
+<style>
+  .lc-wrap{display:flex;gap:6px;width:100%;height:100%;font-family:'Inter','Helvetica Neue',Arial,sans-serif;flex-wrap:wrap;align-content:stretch;}
+  .lc-card{min-width:0;min-height:0;position:relative;border:2px solid #000;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1 1 40%;}
+  .lc-img{width:100%;height:100%;object-fit:contain;background:#000;}
+  .lc-badge{position:absolute;top:3px;left:3px;background:#000;color:#fff;font-weight:800;font-size:12px;padding:1px 5px;border-radius:4px;border:1px solid #fff;}
+  .lc-foot{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #000;padding:1px 4px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lc-state{font-weight:900;line-height:1;}
+  .lc-name{font-weight:700;max-width:94%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lc-sub{font-size:11px;max-width:94%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .n1 .lc-state{font-size:30px}.n1 .lc-name{font-size:15px;margin-top:4px}.n2 .lc-state{font-size:22px}.n2 .lc-name{font-size:13px;margin-top:3px}.n3 .lc-state,.n4 .lc-state{font-size:16px}.n3 .lc-name,.n4 .lc-name{font-size:11px;margin-top:2px}.n3 .lc-sub,.n4 .lc-sub{font-size:9px}
+</style>
+{% assign n = users.size %}{% if n > 4 %}{% assign n = 4 %}{% endif %}
 <div class="layout" style="padding:0;">
-  <div style="display:flex;flex-direction:row;gap:6px;width:100%;height:100%;">
-    {% for u in users %}
-    <div style="flex:1;min-width:0;min-height:0;border:2px solid #000;border-radius:8px;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center;">
+  <div class="lc-wrap n{{ n }}">
+    {% for u in users limit:4 %}
+    <div class="lc-card">
       {% if u.live and u.image %}
-        <img class="image-dither" src="{{ u.image }}" style="width:100%;height:100%;object-fit:contain;background:#000;">
-        <div style="position:absolute;top:4px;left:4px;background:#000;color:#fff;font-weight:800;font-size:13px;padding:1px 6px;border-radius:4px;border:1px solid #fff;">● LIVE</div>
-        <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #000;padding:1px 6px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><b>{{ u.platform }} {{ u.user }}</b> · {{ u.shot }}</div>
+        <img class="image-dither lc-img" src="{{ u.image }}">
+        <div class="lc-badge">● LIVE</div>
+        <div class="lc-foot"><b>{{ u.user }}</b> · {{ u.shot }}</div>
       {% else %}
-        <div style="text-align:center;padding:4px;max-width:100%;">
-          <div style="font-size:18px;font-weight:900;letter-spacing:1px;line-height:1;">{% if u.live %}LIVE{% elsif u.unknown %}???{% else %}OFFLINE{% endif %}</div>
-          <div style="font-size:14px;font-weight:700;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ u.user }}</div>
-          <div style="font-size:11px;margin-top:1px;">{{ u.platform }}</div>
-          <div style="font-size:11px;margin-top:2px;">{{ u.checked }}</div>
-        </div>
+        <div class="lc-state">{% if u.live %}LIVE{% elsif u.unknown %}???{% else %}OFFLINE{% endif %}</div>
+        <div class="lc-name">{{ u.user }}</div>
+        <div class="lc-sub">{{ u.platform }} · {{ u.checked }}</div>
       {% endif %}
     </div>
     {% endfor %}

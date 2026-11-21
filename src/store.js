@@ -1,6 +1,8 @@
 // Lưu trữ trong Cloudflare KV
 import { migrateUsers } from './platforms.js';
 
+export const MAX_USERS = 4; // TRMNL hiện tối đa 4 người
+
 export const DEFAULT_CONFIG = {
   users: ['tt-embechiiu_', 'tt-ducnguyen37999'], // id dạng <tt|yt|fb>-<handle>
   intervalMin: 10,        // bao lâu kiểm tra 1 lần (phút)
