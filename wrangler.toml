@@ -1,0 +1,22 @@
+name = "trmnl-live"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Kiểm tra định kỳ mỗi 5 phút (bên trong tự bỏ qua nếu chưa tới "interval" đặt trong bot)
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Cloudflare Browser Rendering (chụp màn hình phòng live)
+[browser]
+binding = "BROWSER"
+
+# KV lưu cài đặt, trạng thái, ảnh chụp.
+# id được GitHub Actions (scripts/ensure-kv.mjs) tự tạo/điền khi deploy.
+[[kv_namespaces]]
+binding = "KV"
+id = "__KV_ID__"
+
+[observability]
+enabled = true

@@ -1,0 +1,340 @@
+// Bot Telegram điều khiển plugin (chỉ chủ bot dùng được)
+import { runCheck } from './check.js';
+import { getConfig, saveConfig, getState, getImage } from './store.js';
+import { normUser } from './tiktok.js';
+import { fmtTime, fmtDur, esc } from './util.js';
+
+const API = (env, m) => `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${m}`;
+
+async function tg(env, method, body) {
+  const r = await fetch(API(env, method), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.json().catch(() => ({}));
+}
+
+const kbMarkup = (kb) => (kb ? { reply_markup: { inline_keyboard: kb } } : {});
+
+function sendMsg(env, chatId, text, kb) {
+  return tg(env, 'sendMessage', {
+    chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true, ...kbMarkup(kb),
+  });
+}
+
+async function editOrSend(env, chatId, msgId, text, kb) {
+  if (msgId) {
+    const r = await tg(env, 'editMessageText', {
+      chat_id: chatId, message_id: msgId, text, parse_mode: 'HTML', disable_web_page_preview: true, ...kbMarkup(kb),
+    });
+    if (r.ok || String(r.description || '').includes('not modified')) return r;
+  }
+  return sendMsg(env, chatId, text, kb);
+}
+
+async function sendPhotoFromKV(env, chatId, key, caption) {
+  const { value, metadata } = await getImage(env, key);
+  if (!value) return false;
+  const fd = new FormData();
+  fd.append('chat_id', String(chatId));
+  fd.append('caption', caption);
+  fd.append('parse_mode', 'HTML');
+  fd.append('photo', new Blob([value], { type: metadata?.type || 'image/png' }), 'live.png');
+  const r = await fetch(API(env, 'sendPhoto'), { method: 'POST', body: fd });
+  return r.ok;
+}
+
+async function secretToken(env) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('trmnl-live:' + env.TELEGRAM_BOT_TOKEN));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 48);
+}
+
+const COMMANDS = [
+  { command: 'status', description: '📊 Ai đang live' },
+  { command: 'shot', description: '📸 Kiểm tra & chụp ngay' },
+  { command: 'list', description: '👥 Danh sách theo dõi' },
+  { command: 'add', description: '➕ Thêm user: /add username hoặc link' },
+  { command: 'remove', description: '➖ Xoá user: /remove username' },
+  { command: 'settings', description: '⚙️ Cài đặt' },
+  { command: 'trmnl', description: '🖼 Link Polling URL cho TRMNL' },
+  { command: 'help', description: '❓ Hướng dẫn' },
+];
+
+export async function setupWebhook(env, origin) {
+  if (!env.TELEGRAM_BOT_TOKEN) return { ok: false, error: 'Chưa có TELEGRAM_BOT_TOKEN' };
+  const webhook = await tg(env, 'setWebhook', {
+    url: origin + '/tg',
+    secret_token: await secretToken(env),
+    allowed_updates: ['message', 'callback_query'],
+  });
+  const commands = await tg(env, 'setMyCommands', { commands: COMMANDS });
+  return { ok: !!webhook.ok, webhook, commands };
+}
+
+// ---------- Nội dung tin nhắn ----------
+const MAIN_KB = [
+  [{ text: '📊 Trạng thái', callback_data: 'status' }, { text: '📸 Chụp ngay', callback_data: 'shot' }],
+  [{ text: '👥 Danh sách', callback_data: 'list' }, { text: '⚙️ Cài đặt', callback_data: 'settings' }],
+];
+const BACK_KB = [[{ text: '⬅️ Menu', callback_data: 'menu' }]];
+
+function budgetSec(st) {
+  const today = new Date().toISOString().slice(0, 10);
+  return st.budget && st.budget.day === today ? Math.round(st.budget.ms / 1000) : 0;
+}
+
+function userBlock(name, s, now) {
+  const link = `<a href="https://www.tiktok.com/@${esc(name)}/live">@${esc(name)}</a>`;
+  const nick = s.nickname && s.nickname.toLowerCase() !== name ? ` (${esc(s.nickname)})` : '';
+  const badge = s.unknown ? '❓ <b>KHÔNG RÕ</b>' : s.live ? '🔴 <b>LIVE</b>' : '⚫ <b>OFFLINE</b>';
+  const L = [`${badge} · ${link}${nick}`];
+  if (s.live) {
+    if (s.title) L.push(`   📝 ${esc(s.title)}`);
+    const v = s.viewers != null && s.viewers !== '' ? `👁 <b>${s.viewers}</b> người xem · ` : '';
+    if (s.liveSince) L.push(`   ${v}⏳ live từ ${fmtTime(s.liveSince)} (${fmtDur(now - s.liveSince)})`);
+    else if (v) L.push(`   ${v.replace(/ · $/, '')}`);
+    if (s.shotAt) L.push(`   📸 Ảnh lúc ${fmtTime(s.shotAt)} · ${s.shotKind === 'screen' ? 'chụp màn hình' : 'ảnh cover'}`);
+    if (s.shotError) L.push(`   ⚠️ <i>${esc(s.shotError)}</i>`);
+  }
+  if (s.unknown && s.error) L.push(`   ⚠️ <i>${esc(s.error).slice(0, 300)}</i>`);
+  L.push(`   🕒 Kiểm tra lúc ${fmtTime(s.checkedAt) || '<i>chưa</i>'}`);
+  return L.join('\n');
+}
+
+function statusText(cfg, st, names) {
+  const now = Date.now();
+  const list = names || cfg.users;
+  const blocks = list.length
+    ? list.map((n) => userBlock(n, st.users[n] || {}, now)).join('\n\n')
+    : '<i>Chưa theo dõi ai. Dùng /add username</i>';
+  return (
+    `<b>📺 TikTok Live → TRMNL</b>\n\n${blocks}\n\n` +
+    `━━━━━━━━━━━━\n⏱ Kiểm tra mỗi <b>${cfg.intervalMin} phút</b> · ` +
+    `🖥 Quota trình duyệt hôm nay: <b>${budgetSec(st)}s</b> / ${cfg.browserDailySec}s`
+  );
+}
+
+function settingsView(cfg) {
+  const ints = [5, 10, 15, 30, 60];
+  const text =
+    `<b>⚙️ Cài đặt</b>\n\n` +
+    `⏱ Kiểm tra mỗi: <b>${cfg.intervalMin} phút</b>\n` +
+    `📸 Kiểu ảnh khi live: <b>${cfg.shotMode === 'screen' ? 'Chụp màn hình' : 'Ảnh cover'}</b>\n` +
+    `   <i>• Chụp màn hình: đúng cảnh đang live, tốn quota trình duyệt (gói Free ~10 phút/ngày)\n` +
+    `   • Ảnh cover: không tốn quota, nhưng là ảnh bìa phòng live</i>\n` +
+    `🔔 Báo khi bắt đầu/kết thúc live: <b>${cfg.notify ? 'BẬT' : 'TẮT'}</b>`;
+  const kb = [
+    ints.map((n) => ({ text: (n === cfg.intervalMin ? '✅ ' : '') + n + "'", callback_data: 'int:' + n })),
+    [
+      { text: (cfg.shotMode === 'screen' ? '✅ ' : '') + '🖥 Màn hình', callback_data: 'mode:screen' },
+      { text: (cfg.shotMode === 'cover' ? '✅ ' : '') + '🖼 Cover', callback_data: 'mode:cover' },
+    ],
+    [{ text: `🔔 Báo live: ${cfg.notify ? 'BẬT' : 'TẮT'}`, callback_data: 'notify' }],
+    ...BACK_KB,
+  ];
+  return { text, kb };
+}
+
+function listView(cfg) {
+  const text =
+    `<b>👥 Đang theo dõi (${cfg.users.length})</b>\n\n` +
+    (cfg.users.map((u, i) => `${i + 1}. <a href="https://www.tiktok.com/@${esc(u)}">@${esc(u)}</a>`).join('\n') ||
+      '<i>Trống</i>') +
+    `\n\n➕ Thêm: <code>/add username</code> hoặc dán link TikTok\n` +
+    `<i>TRMNL hiện tối đa 3 người cạnh nhau (ưu tiên người đang live).</i>`;
+  const kb = [...cfg.users.map((u) => [{ text: `❌ Xoá @${u}`, callback_data: 'rm:' + u }]), ...BACK_KB];
+  return { text, kb };
+}
+
+const HELP =
+  `<b>❓ Hướng dẫn</b>\n\n` +
+  `/status – ai đang live (kèm ảnh)\n` +
+  `/shot – kiểm tra & chụp ngay (tất cả)\n` +
+  `/shot username – chụp riêng 1 người\n` +
+  `/add username hoặc link – thêm người\n` +
+  `/remove username – xoá người\n` +
+  `/list – danh sách\n` +
+  `/settings – tần suất, kiểu ảnh, thông báo\n` +
+  `/trmnl – link Polling URL cho TRMNL`;
+
+async function sendLivePhotos(env, chatId, st, names) {
+  for (const n of names) {
+    const s = st.users[n];
+    if (s && s.live && s.shotAt) {
+      await sendPhotoFromKV(
+        env, chatId, 'shot:' + n,
+        `🔴 <b>@${esc(n)}</b>${s.viewers != null && s.viewers !== '' ? ` · 👁 ${s.viewers}` : ''} · 📸 ${fmtTime(s.shotAt)}`,
+      );
+    }
+  }
+}
+
+async function doShot(env, chatId, only) {
+  const wait = await sendMsg(env, chatId, `⏳ Đang kiểm tra${only ? ' @' + esc(only) : ''} và chụp màn hình…`);
+  const r = await runCheck(env, { force: true, only, forceShot: true });
+  await editOrSend(env, chatId, wait?.result?.message_id, statusText(r.cfg, r.st, r.checked), MAIN_KB);
+  await sendLivePhotos(env, chatId, r.st, r.checked);
+}
+
+// ---------- Thông báo tự động ----------
+export async function notifyEvents(env, cfg, st, events) {
+  const owner = env.TELEGRAM_OWNER_ID || cfg.ownerId;
+  if (!env.TELEGRAM_BOT_TOKEN || !owner) return;
+  const now = Date.now();
+  for (const ev of events) {
+    const link = `<a href="https://www.tiktok.com/@${esc(ev.user)}/live">@${esc(ev.user)}</a>`;
+    if (ev.live) {
+      const cap = `🔴 <b>${link} vừa LIVE!</b>${ev.title ? `\n📝 ${esc(ev.title)}` : ''}`;
+      const sent = st.users[ev.user]?.shotAt ? await sendPhotoFromKV(env, owner, 'shot:' + ev.user, cap) : false;
+      if (!sent) await sendMsg(env, owner, cap);
+    } else {
+      await sendMsg(env, owner, `⚫ ${link} đã tắt live${ev.liveSince ? ` (live ${fmtDur(now - ev.liveSince)})` : ''}`);
+    }
+  }
+}
+
+// ---------- Xử lý update ----------
+export async function handleTelegram(req, env) {
+  if (!env.TELEGRAM_BOT_TOKEN) return new Response('no token', { status: 503 });
+  if (req.headers.get('x-telegram-bot-api-secret-token') !== (await secretToken(env))) {
+    return new Response('forbidden', { status: 403 });
+  }
+  const upd = await req.json();
+  const origin = new URL(req.url).origin;
+
+  // Chống xử lý trùng khi Telegram gửi lại
+  const dk = 'upd:' + upd.update_id;
+  if (await env.KV.get(dk)) return new Response('dup');
+
+  try {
+    await processUpdate(env, upd, origin, dk);
+  } catch (e) {
+    console.error('telegram', e);
+  }
+  return new Response('ok');
+}
+
+async function processUpdate(env, upd, origin, dedupKey) {
+  const cfg = await getConfig(env);
+  const msg = upd.message;
+  const cq = upd.callback_query;
+  const from = (msg || cq)?.from;
+  const chatId = msg ? msg.chat.id : cq?.message?.chat?.id;
+  if (!from || !chatId) return;
+
+  let owner = String(env.TELEGRAM_OWNER_ID || cfg.ownerId || '');
+  const text = msg?.text || '';
+  const cmd = text.startsWith('/') ? text.split(/\s+/)[0].replace(/@.*$/, '').toLowerCase() : '';
+  const arg = text.split(/\s+/).slice(1).join(' ').trim();
+
+  // Người đầu tiên bấm /start trở thành chủ bot
+  if (!owner && cmd === '/start') {
+    cfg.ownerId = String(from.id);
+    await saveConfig(env, cfg);
+    owner = cfg.ownerId;
+  }
+  if (String(from.id) !== owner) {
+    if (cq) await tg(env, 'answerCallbackQuery', { callback_query_id: cq.id, text: '⛔ Bot riêng tư' });
+    else if (cmd === '/start') await sendMsg(env, chatId, '👋 Xin chào! Bot này là bot riêng tư.');
+    return;
+  }
+
+  // ----- Nút bấm -----
+  if (cq) {
+    const data = cq.data || '';
+    await tg(env, 'answerCallbackQuery', { callback_query_id: cq.id });
+    const msgId = cq.message?.message_id;
+    if (data === 'menu') return editOrSend(env, chatId, msgId, welcome(cfg), MAIN_KB);
+    if (data === 'status') {
+      const st = await getState(env);
+      await sendMsg(env, chatId, statusText(cfg, st), MAIN_KB);
+      return sendLivePhotos(env, chatId, st, cfg.users);
+    }
+    if (data === 'shot') {
+      await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
+      return doShot(env, chatId, null);
+    }
+    if (data === 'list') { const v = listView(cfg); return editOrSend(env, chatId, msgId, v.text, v.kb); }
+    if (data === 'settings') { const v = settingsView(cfg); return editOrSend(env, chatId, msgId, v.text, v.kb); }
+    if (data.startsWith('int:')) cfg.intervalMin = Number(data.slice(4));
+    else if (data.startsWith('mode:')) cfg.shotMode = data.slice(5) === 'cover' ? 'cover' : 'screen';
+    else if (data === 'notify') cfg.notify = !cfg.notify;
+    else if (data.startsWith('rm:')) {
+      cfg.users = cfg.users.filter((u) => u !== data.slice(3));
+      await saveConfig(env, cfg);
+      const v = listView(cfg);
+      return editOrSend(env, chatId, msgId, v.text, v.kb);
+    } else return;
+    await saveConfig(env, cfg);
+    const v = settingsView(cfg);
+    return editOrSend(env, chatId, msgId, v.text, v.kb);
+  }
+
+  // ----- Lệnh -----
+  switch (cmd) {
+    case '/start':
+    case '/menu':
+      return sendMsg(env, chatId, welcome(cfg), MAIN_KB);
+    case '/help':
+      return sendMsg(env, chatId, HELP, MAIN_KB);
+    case '/status': {
+      const st = await getState(env);
+      await sendMsg(env, chatId, statusText(cfg, st), MAIN_KB);
+      return sendLivePhotos(env, chatId, st, cfg.users);
+    }
+    case '/shot': {
+      let only = null;
+      if (arg) {
+        only = normUser(arg);
+        if (!only || !cfg.users.includes(only)) {
+          return sendMsg(env, chatId, `⚠️ @${esc(arg)} không có trong danh sách. Xem /list`);
+        }
+      }
+      await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
+      return doShot(env, chatId, only);
+    }
+    case '/list': { const v = listView(cfg); return sendMsg(env, chatId, v.text, v.kb); }
+    case '/settings': { const v = settingsView(cfg); return sendMsg(env, chatId, v.text, v.kb); }
+    case '/add': {
+      const u = normUser(arg);
+      if (!u) return sendMsg(env, chatId, '⚠️ Cách dùng: <code>/add username</code> hoặc dán link TikTok');
+      if (cfg.users.includes(u)) return sendMsg(env, chatId, `ℹ️ @${esc(u)} đã có trong danh sách.`);
+      cfg.users.push(u);
+      await saveConfig(env, cfg);
+      await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
+      await sendMsg(env, chatId, `✅ Đã thêm <b>@${esc(u)}</b>. Đang kiểm tra…`);
+      return doShot(env, chatId, u);
+    }
+    case '/remove': {
+      const u = normUser(arg);
+      if (!u || !cfg.users.includes(u)) {
+        const v = listView(cfg);
+        return sendMsg(env, chatId, '⚠️ Chọn người cần xoá:\n\n' + v.text, v.kb);
+      }
+      cfg.users = cfg.users.filter((x) => x !== u);
+      await saveConfig(env, cfg);
+      return sendMsg(env, chatId, `🗑 Đã xoá <b>@${esc(u)}</b>.`, MAIN_KB);
+    }
+    case '/trmnl':
+      return sendMsg(
+        env, chatId,
+        `<b>🖼 Cài đặt TRMNL</b>\n\nStrategy: <b>Polling</b>\nPolling URL:\n<code>${origin}/trmnl</code>`,
+      );
+    default:
+      if (cmd) return sendMsg(env, chatId, '🤔 Không hiểu lệnh.\n\n' + HELP, MAIN_KB);
+      // Dán link TikTok trực tiếp -> gợi ý thêm
+      if (/tiktok\.com\/@/i.test(text)) {
+        const u = normUser(text);
+        if (u) return sendMsg(env, chatId, `Thêm @${esc(u)}? Gõ <code>/add ${esc(u)}</code>`);
+      }
+  }
+}
+
+function welcome(cfg) {
+  return (
+    `<b>📺 TikTok Live → TRMNL</b>\n\n` +
+    `Đang theo dõi <b>${cfg.users.length}</b> người · kiểm tra mỗi <b>${cfg.intervalMin} phút</b>.\n` +
+    `Khi ai đó live, màn hình TRMNL hiện ảnh chụp phòng live; không live thì hiện <b>OFFLINE</b>.`
+  );
+}
