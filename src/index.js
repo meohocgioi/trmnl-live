@@ -62,6 +62,37 @@ export default {
       return json(await checkLive(dbg[1].toLowerCase(), env));
     }
 
+    // Thử đọc trang YouTube/Facebook từ Cloudflare (chẩn đoán)
+    if (p === '/probe') {
+      const target = url.searchParams.get('u') || '';
+      if (!/^https:\/\/(www\.|m\.)?(youtube\.com|facebook\.com)\//.test(target)) return json({ error: 'host' }, 400);
+      const uas = {
+        chrome: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        fbbot: 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+        google: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      };
+      const ua = uas[url.searchParams.get('ua')] || uas.chrome;
+      const r = await fetch(target, {
+        headers: { 'user-agent': ua, 'accept-language': 'en-US,en;q=0.9', cookie: 'SOCS=CAI; CONSENT=YES+1' },
+      });
+      const h = await r.text();
+      const pick = (re) => (h.match(re) || [])[1] || null;
+      const markers = {};
+      for (const k of ['isLiveNow":true', 'isLive":true', 'isUpcoming":true', 'is_live_streaming', '"is_live":true',
+        'broadcast_status":"LIVE', 'LIVE_STREAM', 'login', 'checkpoint', 'live_video', 'watching now']) {
+        const i = h.indexOf(k);
+        markers[k] = i < 0 ? 0 : h.split(k).length - 1;
+      }
+      const snip = (k) => { const i = h.indexOf(k); return i < 0 ? null : h.slice(Math.max(0, i - 150), i + 250); };
+      return json({
+        status: r.status, finalUrl: r.url, len: h.length,
+        title: pick(/<title[^>]*>([^<]*)/), ogTitle: pick(/property="og:title" content="([^"]*)/),
+        ogUrl: pick(/property="og:url" content="([^"]*)/), canonical: pick(/rel="canonical" href="([^"]*)/),
+        ogImage: pick(/property="og:image" content="([^"]*)/), ogType: pick(/property="og:type" content="([^"]*)/),
+        markers, snipLive: snip(url.searchParams.get('k') || 'is_live'),
+      });
+    }
+
     if (p === '/tg' && req.method === 'POST') return handleTelegram(req, env, ctx);
 
     if (p === '/setup') return json(await setupWebhook(env, url.origin));
