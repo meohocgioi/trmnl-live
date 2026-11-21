@@ -3,6 +3,7 @@ import { runCheck } from './check.js';
 import { getConfig, saveConfig, getState, getImage } from './store.js';
 import { parseEntry, idInfo, splitId } from './platforms.js';
 import { fmtTime, fmtDur, esc } from './util.js';
+import { trmnlPreview } from './trmnl.js';
 
 const API = (env, m) => `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${m}`;
 
@@ -36,11 +37,16 @@ async function editOrSend(env, chatId, msgId, text, kb) {
 async function sendPhotoFromKV(env, chatId, key, caption) {
   const { value, metadata } = await getImage(env, key);
   if (!value) return false;
+  return sendPhotoBytes(env, chatId, value, metadata?.type, caption);
+}
+
+async function sendPhotoBytes(env, chatId, value, type, caption, kb) {
   const fd = new FormData();
   fd.append('chat_id', String(chatId));
   fd.append('caption', caption);
   fd.append('parse_mode', 'HTML');
-  fd.append('photo', new Blob([value], { type: metadata?.type || 'image/png' }), 'live.png');
+  if (kb) fd.append('reply_markup', JSON.stringify({ inline_keyboard: kb }));
+  fd.append('photo', new Blob([value], { type: type || 'image/png' }), 'live.png');
   const r = await fetch(API(env, 'sendPhoto'), { method: 'POST', body: fd });
   return r.ok;
 }
@@ -57,7 +63,8 @@ const COMMANDS = [
   { command: 'add', description: '➕ Thêm: /add link TikTok/YouTube/Facebook' },
   { command: 'remove', description: '➖ Xoá người theo dõi' },
   { command: 'settings', description: '⚙️ Cài đặt' },
-  { command: 'trmnl', description: '🖼 Link Polling URL cho TRMNL' },
+  { command: 'preview', description: '🖼 Xem trước màn hình TRMNL' },
+  { command: 'trmnl', description: '🔗 Link Polling URL cho TRMNL' },
   { command: 'update', description: '🔄 Cập nhật code mới nhất từ GitHub' },
   { command: 'version', description: '🏷 Phiên bản đang chạy' },
   { command: 'help', description: '❓ Hướng dẫn' },
@@ -87,6 +94,7 @@ export async function setupWebhook(env, origin) {
 // ---------- Nội dung tin nhắn ----------
 const MAIN_KB = [
   [{ text: '📊 Trạng thái', callback_data: 'status' }, { text: '📸 Chụp ngay', callback_data: 'shot' }],
+  [{ text: '🖼 Preview TRMNL', callback_data: 'preview' }],
   [{ text: '👥 Danh sách', callback_data: 'list' }, { text: '⚙️ Cài đặt', callback_data: 'settings' }],
 ];
 const BACK_KB = [[{ text: '⬅️ Menu', callback_data: 'menu' }]];
@@ -185,6 +193,8 @@ const HELP =
   `/remove tên – xoá người\n` +
   `/list – danh sách\n` +
   `/settings – tần suất, kiểu ảnh, thông báo\n` +
+  `/preview – xem trước màn hình TRMNL (đúng như lần refresh tới)\n` +
+  `/preview all – xem trước cả 4 cỡ (full, nửa ngang, nửa dọc, 1/4)\n` +
   `/trmnl – link Polling URL cho TRMNL\n` +
   `/update – cập nhật code mới nhất từ GitHub (chỉ khi bạn bấm)\n` +
   `/version – phiên bản đang chạy`;
@@ -206,6 +216,45 @@ async function doShot(env, chatId, only) {
   const r = await runCheck(env, { force: true, only, forceShot: true });
   await editOrSend(env, chatId, wait?.result?.message_id, statusText(r.cfg, r.st, r.checked), MAIN_KB);
   await sendLivePhotos(env, chatId, r.st, r.checked);
+}
+
+const VIEW_NAME = {
+  markup_full: 'Toàn màn hình',
+  markup_half_horizontal: 'Nửa ngang',
+  markup_half_vertical: 'Nửa dọc',
+  markup_quadrant: '1/4 màn hình',
+};
+
+async function doPreview(env, chatId, all) {
+  if (!env.TRMNL_MCP_KEY) {
+    return sendMsg(env, chatId,
+      '⚠️ Chưa có secret <code>TRMNL_MCP_KEY</code> (MCP API key của plugin trên TRMNL).\nThêm vào GitHub Secrets rồi bấm /update.');
+  }
+  const wait = await sendMsg(env, chatId, '⏳ Đang nhờ TRMNL render màn hình với dữ liệu hiện tại… (~15–30 giây)');
+  const views = all
+    ? ['markup_full', 'markup_half_horizontal', 'markup_half_vertical', 'markup_quadrant']
+    : ['markup_full'];
+  try {
+    const imgs = await trmnlPreview(env, views);
+    const cfg = await getConfig(env);
+    const st = await getState(env);
+    const lines = cfg.users.slice(0, 6).map((id) => {
+      const s = st.users[id] || {};
+      const I = idInfo(id);
+      return `${s.unknown ? '❓' : s.live ? '🔴' : '⚫'} ${I.P.icon} ${esc(I.display)}`;
+    });
+    for (let i = 0; i < imgs.length; i++) {
+      const im = imgs[i];
+      const cap = i === 0
+        ? `🖼 <b>Preview TRMNL</b> · ${VIEW_NAME[im.view] || im.view}\n` +
+          `<i>Đúng như màn hình sẽ hiện ở lần TRMNL refresh tới.</i>\n\n${lines.join('\n')}\n🕒 Dữ liệu lúc ${fmtTime(st.lastRun) || '?'}`
+        : `🖼 ${VIEW_NAME[im.view] || im.view}`;
+      await sendPhotoBytes(env, chatId, im.bytes, im.type, cap, i === imgs.length - 1 ? MAIN_KB : undefined);
+    }
+    if (wait?.result?.message_id) await tg(env, 'deleteMessage', { chat_id: chatId, message_id: wait.result.message_id });
+  } catch (e) {
+    await editOrSend(env, chatId, wait?.result?.message_id, `❌ Không lấy được preview.\n<code>${esc(e.message).slice(0, 500)}</code>`, MAIN_KB);
+  }
 }
 
 // ---------- Thông báo tự động ----------
@@ -295,6 +344,10 @@ async function processUpdate(env, upd, origin, dedupKey) {
       await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
       return doShot(env, chatId, null);
     }
+    if (data === 'preview') {
+      await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
+      return doPreview(env, chatId, false);
+    }
     if (data === 'list') { const v = listView(cfg); return editOrSend(env, chatId, msgId, v.text, v.kb); }
     if (data === 'settings') { const v = settingsView(cfg); return editOrSend(env, chatId, msgId, v.text, v.kb); }
     if (data.startsWith('int:')) cfg.intervalMin = Number(data.slice(4));
@@ -364,6 +417,9 @@ async function processUpdate(env, upd, origin, dedupKey) {
       await saveConfig(env, cfg);
       return sendMsg(env, chatId, `🗑 Đã xoá ${idInfo(id).P.icon} <b>${esc(idInfo(id).display)}</b>.`, MAIN_KB);
     }
+    case '/preview':
+      await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
+      return doPreview(env, chatId, /^(all|tat ca|tất cả)$/i.test(arg));
     case '/version':
       return sendMsg(env, chatId,
         `🏷 Phiên bản đang chạy: <code>${esc(env.VERSION || 'chưa rõ')}</code>\n📝 ${esc(env.VERSION_MSG || '')}`);

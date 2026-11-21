@@ -28,6 +28,7 @@ Repo → *Settings → Secrets and variables → Actions → New repository secr
 | `TELEGRAM_OWNER_ID` | Telegram user ID của bạn | không (nếu bỏ trống, người đầu tiên bấm /start là chủ) |
 | `TIKTOK_COOKIE` | cookie TikTok (nếu phòng live yêu cầu đăng nhập) | không |
 | `GH_TOKEN` | GitHub fine-grained token, quyền **Actions: Read and write** cho repo này (để /update chạy được) | cho /update |
+| `TRMNL_MCP_KEY` | MCP API key của plugin trên TRMNL (cho /preview) | cho /preview |
 | `FACEBOOK_COOKIE` | cookie Facebook (bắt buộc nếu theo dõi Facebook; nên dùng tài khoản phụ) | cho Facebook |
 
 Sau đó vào tab **Actions → Deploy Worker → Run workflow**.
