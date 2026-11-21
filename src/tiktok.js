@@ -52,6 +52,7 @@ export async function checkLive(user, env) {
       out.roomId = d.user.roomId || null;
       out.nickname = d.user.nickname || null;
       out.avatar = d.user.avatarLarger || d.user.avatarMedium || d.user.avatarThumb || null;
+      out.raw = { userStatus: d.user.status, liveRoomStatus: lr.status, startTime: lr.startTime };
       out.live = (lr.status ?? d.user.status) === 2;
       out.title = lr.title || null;
       out.viewers = lr.liveRoomStats?.userCount ?? null;
@@ -91,6 +92,7 @@ export async function checkLive(user, env) {
         env,
       );
       const d = j && j.data;
+      out.raw = { ...(out.raw || {}), roomStatus: d?.status, roomStatusCode: j?.status_code, roomMsg: d?.message || j?.data?.prompts };
       if (d && d.status !== undefined) {
         out.live = d.status === 2;
         out.title = d.title || out.title;

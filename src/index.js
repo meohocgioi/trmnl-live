@@ -56,6 +56,12 @@ export default {
       });
     }
 
+    const dbg = p.match(/^\/debug\/([\w.]+)$/);
+    if (dbg) {
+      const { checkLive } = await import('./tiktok.js');
+      return json(await checkLive(dbg[1].toLowerCase(), env));
+    }
+
     if (p === '/tg' && req.method === 'POST') return handleTelegram(req, env, ctx);
 
     if (p === '/setup') return json(await setupWebhook(env, url.origin));

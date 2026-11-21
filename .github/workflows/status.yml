@@ -15,3 +15,6 @@ jobs:
           for u in $(curl -s "$URL/trmnl" | grep -oE '"user": "[^"]+"' | cut -d'"' -f4); do
             echo "== /img/shot/$u -> $(curl -s -o /dev/null -w '%{http_code} %{content_type} %{size_download}B' "$URL/img/shot/$u")"
           done
+          for u in $(curl -s "$URL/trmnl" | grep -oE '"user": "[^"]+"' | cut -d'"' -f4); do
+            echo "== /debug/$u"; curl -s "$URL/debug/$u"; echo
+          done
