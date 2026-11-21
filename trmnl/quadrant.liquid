@@ -5,11 +5,12 @@
       {% if u.live and u.image %}
         <img src="{{ u.image }}" style="width:100%;height:100%;object-fit:contain;background:#000;">
         <div style="position:absolute;top:4px;left:4px;background:#000;color:#fff;font-weight:800;font-size:13px;padding:1px 6px;border-radius:4px;border:1px solid #fff;">● LIVE</div>
-        <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #000;padding:1px 6px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><b>@{{ u.user }}</b> · {{ u.shot }}</div>
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #000;padding:1px 6px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><b>{{ u.platform }} {{ u.user }}</b> · {{ u.shot }}</div>
       {% else %}
         <div style="text-align:center;padding:4px;max-width:100%;">
           <div style="font-size:18px;font-weight:900;letter-spacing:1px;line-height:1;">{% if u.live %}LIVE{% elsif u.unknown %}???{% else %}OFFLINE{% endif %}</div>
-          <div style="font-size:14px;font-weight:700;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@{{ u.user }}</div>
+          <div style="font-size:14px;font-weight:700;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ u.user }}</div>
+          <div style="font-size:11px;margin-top:1px;">{{ u.platform }}</div>
           <div style="font-size:11px;margin-top:2px;">{{ u.checked }}</div>
         </div>
       {% endif %}

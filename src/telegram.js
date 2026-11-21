@@ -1,7 +1,7 @@
 // Bot Telegram điều khiển plugin (chỉ chủ bot dùng được)
 import { runCheck } from './check.js';
 import { getConfig, saveConfig, getState, getImage } from './store.js';
-import { normUser } from './tiktok.js';
+import { parseEntry, idInfo, splitId } from './platforms.js';
 import { fmtTime, fmtDur, esc } from './util.js';
 
 const API = (env, m) => `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${m}`;
@@ -54,8 +54,8 @@ const COMMANDS = [
   { command: 'status', description: '📊 Ai đang live' },
   { command: 'shot', description: '📸 Kiểm tra & chụp ngay' },
   { command: 'list', description: '👥 Danh sách theo dõi' },
-  { command: 'add', description: '➕ Thêm user: /add username hoặc link' },
-  { command: 'remove', description: '➖ Xoá user: /remove username' },
+  { command: 'add', description: '➕ Thêm: /add link TikTok/YouTube/Facebook' },
+  { command: 'remove', description: '➖ Xoá người theo dõi' },
   { command: 'settings', description: '⚙️ Cài đặt' },
   { command: 'trmnl', description: '🖼 Link Polling URL cho TRMNL' },
   { command: 'help', description: '❓ Hướng dẫn' },
@@ -84,9 +84,10 @@ function budgetSec(st) {
   return st.budget && st.budget.day === today ? Math.round(st.budget.ms / 1000) : 0;
 }
 
-function userBlock(name, s, now) {
-  const link = `<a href="https://www.tiktok.com/@${esc(name)}/live">@${esc(name)}</a>`;
-  const nick = s.nickname && s.nickname.toLowerCase() !== name ? ` (${esc(s.nickname)})` : '';
+function userBlock(id, s, now) {
+  const I = idInfo(id);
+  const link = `${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a>`;
+  const nick = s.nickname && s.nickname.toLowerCase() !== I.handle ? ` (${esc(s.nickname)})` : '';
   const badge = s.unknown ? '❓ <b>KHÔNG RÕ</b>' : s.live ? '🔴 <b>LIVE</b>' : '⚫ <b>OFFLINE</b>';
   const L = [`${badge} · ${link}${nick}`];
   if (s.live) {
@@ -94,13 +95,15 @@ function userBlock(name, s, now) {
     const v = s.viewers != null && s.viewers !== '' ? `👁 <b>${s.viewers}</b> người xem · ` : '';
     if (s.liveSince) L.push(`   ${v}⏳ live từ ${fmtTime(s.liveSince)} (${fmtDur(now - s.liveSince)})`);
     else if (v) L.push(`   ${v.replace(/ · $/, '')}`);
-    if (s.shotAt) L.push(`   📸 Ảnh lúc ${fmtTime(s.shotAt)} · ${s.shotKind === 'screen' ? 'chụp màn hình' : 'ảnh cover'}`);
+    if (s.shotAt) L.push(`   📸 Ảnh lúc ${fmtTime(s.shotAt)} · ${KIND[s.shotKind] || 'ảnh'}`);
     if (s.shotError) L.push(`   ⚠️ <i>${esc(s.shotError)}</i>`);
   }
   if (s.unknown && s.error) L.push(`   ⚠️ <i>${esc(s.error).slice(0, 300)}</i>`);
   L.push(`   🕒 Kiểm tra lúc ${fmtTime(s.checkedAt) || '<i>chưa</i>'}`);
   return L.join('\n');
 }
+
+const KIND = { screen: 'chụp màn hình', thumb: 'thumbnail live', cover: 'ảnh cover' };
 
 function statusText(cfg, st, names) {
   const now = Date.now();
@@ -137,13 +140,26 @@ function settingsView(cfg) {
 }
 
 function listView(cfg) {
+  const rows = cfg.users.map((id, i) => {
+    const I = idInfo(id);
+    return `${i + 1}. ${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a> · ${I.P.name}`;
+  });
   const text =
     `<b>👥 Đang theo dõi (${cfg.users.length})</b>\n\n` +
-    (cfg.users.map((u, i) => `${i + 1}. <a href="https://www.tiktok.com/@${esc(u)}">@${esc(u)}</a>`).join('\n') ||
-      '<i>Trống</i>') +
-    `\n\n➕ Thêm: <code>/add username</code> hoặc dán link TikTok\n` +
+    (rows.join('\n') || '<i>Trống</i>') +
+    `\n\n➕ Thêm: dán link vào <code>/add</code>, ví dụ:\n` +
+    `<code>/add https://www.tiktok.com/@abc</code>\n` +
+    `<code>/add https://www.youtube.com/@abc</code>\n` +
+    `<code>/add https://www.facebook.com/abc</code>\n` +
+    `hoặc gõ tắt <code>/add tt abc</code> · <code>/add yt abc</code> · <code>/add fb abc</code>\n` +
     `<i>TRMNL hiện tối đa 3 người cạnh nhau (ưu tiên người đang live).</i>`;
-  const kb = [...cfg.users.map((u) => [{ text: `❌ Xoá @${u}`, callback_data: 'rm:' + u }]), ...BACK_KB];
+  const kb = [
+    ...cfg.users.map((id) => {
+      const I = idInfo(id);
+      return [{ text: `❌ Xoá ${I.P.icon} ${I.display}`, callback_data: 'rm:' + id }];
+    }),
+    ...BACK_KB,
+  ];
   return { text, kb };
 }
 
@@ -151,9 +167,10 @@ const HELP =
   `<b>❓ Hướng dẫn</b>\n\n` +
   `/status – ai đang live (kèm ảnh)\n` +
   `/shot – kiểm tra & chụp ngay (tất cả)\n` +
-  `/shot username – chụp riêng 1 người\n` +
-  `/add username hoặc link – thêm người\n` +
-  `/remove username – xoá người\n` +
+  `/shot tên – chụp riêng 1 người\n` +
+  `/add link – thêm người (TikTok / YouTube / Facebook)\n` +
+  `/add yt tên · /add fb tên · /add tt tên – gõ tắt\n` +
+  `/remove tên – xoá người\n` +
   `/list – danh sách\n` +
   `/settings – tần suất, kiểu ảnh, thông báo\n` +
   `/trmnl – link Polling URL cho TRMNL`;
@@ -164,14 +181,14 @@ async function sendLivePhotos(env, chatId, st, names) {
     if (s && s.live && s.shotAt) {
       await sendPhotoFromKV(
         env, chatId, 'shot:' + n,
-        `🔴 <b>@${esc(n)}</b>${s.viewers != null && s.viewers !== '' ? ` · 👁 ${s.viewers}` : ''} · 📸 ${fmtTime(s.shotAt)}`,
+        `🔴 ${idInfo(n).P.icon} <b>${esc(idInfo(n).display)}</b>${s.viewers != null && s.viewers !== '' ? ` · 👁 ${s.viewers}` : ''} · 📸 ${fmtTime(s.shotAt)}`,
       );
     }
   }
 }
 
 async function doShot(env, chatId, only) {
-  const wait = await sendMsg(env, chatId, `⏳ Đang kiểm tra${only ? ' @' + esc(only) : ''} và chụp màn hình…`);
+  const wait = await sendMsg(env, chatId, `⏳ Đang kiểm tra${only ? ' ' + esc(idInfo(only).display) : ''} và chụp ảnh…`);
   const r = await runCheck(env, { force: true, only, forceShot: true });
   await editOrSend(env, chatId, wait?.result?.message_id, statusText(r.cfg, r.st, r.checked), MAIN_KB);
   await sendLivePhotos(env, chatId, r.st, r.checked);
@@ -183,10 +200,11 @@ export async function notifyEvents(env, cfg, st, events) {
   if (!env.TELEGRAM_BOT_TOKEN || !owner) return;
   const now = Date.now();
   for (const ev of events) {
-    const link = `<a href="https://www.tiktok.com/@${esc(ev.user)}/live">@${esc(ev.user)}</a>`;
+    const I = idInfo(ev.id);
+    const link = `${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a>`;
     if (ev.live) {
-      const cap = `🔴 <b>${link} vừa LIVE!</b>${ev.title ? `\n📝 ${esc(ev.title)}` : ''}`;
-      const sent = st.users[ev.user]?.shotAt ? await sendPhotoFromKV(env, owner, 'shot:' + ev.user, cap) : false;
+      const cap = `🔴 <b>${link} vừa LIVE trên ${I.P.name}!</b>${ev.title ? `\n📝 ${esc(ev.title)}` : ''}`;
+      const sent = st.users[ev.id]?.shotAt ? await sendPhotoFromKV(env, owner, 'shot:' + ev.id, cap) : false;
       if (!sent) await sendMsg(env, owner, cap);
     } else {
       await sendMsg(env, owner, `⚫ ${link} đã tắt live${ev.liveSince ? ` (live ${fmtDur(now - ev.liveSince)})` : ''}`);
@@ -213,6 +231,14 @@ export async function handleTelegram(req, env) {
     console.error('telegram', e);
   }
   return new Response('ok');
+}
+
+// Tìm id trong danh sách từ link / "yt tên" / tên trơn
+function findId(cfg, arg) {
+  const e = parseEntry(arg);
+  if (e && cfg.users.includes(e.id)) return e.id;
+  const h = String(arg || '').trim().replace(/^@/, '').toLowerCase();
+  return cfg.users.find((id) => splitId(id).handle.toLowerCase() === (e ? e.handle.toLowerCase() : h)) || null;
 }
 
 async function processUpdate(env, upd, origin, dedupKey) {
@@ -286,10 +312,8 @@ async function processUpdate(env, upd, origin, dedupKey) {
     case '/shot': {
       let only = null;
       if (arg) {
-        only = normUser(arg);
-        if (!only || !cfg.users.includes(only)) {
-          return sendMsg(env, chatId, `⚠️ @${esc(arg)} không có trong danh sách. Xem /list`);
-        }
+        only = findId(cfg, arg);
+        if (!only) return sendMsg(env, chatId, `⚠️ ${esc(arg)} không có trong danh sách. Xem /list`);
       }
       await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
       return doShot(env, chatId, only);
@@ -297,24 +321,34 @@ async function processUpdate(env, upd, origin, dedupKey) {
     case '/list': { const v = listView(cfg); return sendMsg(env, chatId, v.text, v.kb); }
     case '/settings': { const v = settingsView(cfg); return sendMsg(env, chatId, v.text, v.kb); }
     case '/add': {
-      const u = normUser(arg);
-      if (!u) return sendMsg(env, chatId, '⚠️ Cách dùng: <code>/add username</code> hoặc dán link TikTok');
-      if (cfg.users.includes(u)) return sendMsg(env, chatId, `ℹ️ @${esc(u)} đã có trong danh sách.`);
-      cfg.users.push(u);
+      const e = parseEntry(arg);
+      if (!e) {
+        return sendMsg(env, chatId,
+          '⚠️ Cách dùng:\n<code>/add link TikTok / YouTube / Facebook</code>\n' +
+          'hoặc <code>/add tt tên</code> · <code>/add yt tên</code> · <code>/add fb tên</code>');
+      }
+      const I = idInfo(e.id);
+      if (cfg.users.includes(e.id)) return sendMsg(env, chatId, `ℹ️ ${I.P.icon} ${esc(I.display)} đã có trong danh sách.`);
+      cfg.users.push(e.id);
       await saveConfig(env, cfg);
       await env.KV.put(dedupKey, '1', { expirationTtl: 600 });
-      await sendMsg(env, chatId, `✅ Đã thêm <b>@${esc(u)}</b>. Đang kiểm tra…`);
-      return doShot(env, chatId, u);
+      let note = '';
+      if (e.plat === 'fb' && !env.FACEBOOK_COOKIE) {
+        note = '\n\n⚠️ <b>Facebook bắt đăng nhập</b> mới xem được trạng thái live. Cần thêm secret <code>FACEBOOK_COOKIE</code> trên GitHub (nên dùng tài khoản Facebook phụ). Chưa có thì sẽ hiện ❓.';
+      }
+      if (e.plat === 'yt') note = '\n\n<i>YouTube dùng ảnh thumbnail live (YouTube tự cập nhật vài phút/lần), không tốn quota trình duyệt.</i>';
+      await sendMsg(env, chatId, `✅ Đã thêm ${I.P.icon} <b>${esc(I.display)}</b> (${I.P.name}). Đang kiểm tra…${note}`);
+      return doShot(env, chatId, e.id);
     }
     case '/remove': {
-      const u = normUser(arg);
-      if (!u || !cfg.users.includes(u)) {
+      const id = arg ? findId(cfg, arg) : null;
+      if (!id) {
         const v = listView(cfg);
         return sendMsg(env, chatId, '⚠️ Chọn người cần xoá:\n\n' + v.text, v.kb);
       }
-      cfg.users = cfg.users.filter((x) => x !== u);
+      cfg.users = cfg.users.filter((x) => x !== id);
       await saveConfig(env, cfg);
-      return sendMsg(env, chatId, `🗑 Đã xoá <b>@${esc(u)}</b>.`, MAIN_KB);
+      return sendMsg(env, chatId, `🗑 Đã xoá ${idInfo(id).P.icon} <b>${esc(idInfo(id).display)}</b>.`, MAIN_KB);
     }
     case '/trmnl':
       return sendMsg(
@@ -323,10 +357,12 @@ async function processUpdate(env, upd, origin, dedupKey) {
       );
     default:
       if (cmd) return sendMsg(env, chatId, '🤔 Không hiểu lệnh.\n\n' + HELP, MAIN_KB);
-      // Dán link TikTok trực tiếp -> gợi ý thêm
-      if (/tiktok\.com\/@/i.test(text)) {
-        const u = normUser(text);
-        if (u) return sendMsg(env, chatId, `Thêm @${esc(u)}? Gõ <code>/add ${esc(u)}</code>`);
+      // Dán link trực tiếp -> gợi ý thêm
+      if (/(tiktok|youtube|facebook|fb)\.com\//i.test(text)) {
+        const e = parseEntry(text);
+        if (e) {
+          return sendMsg(env, chatId, `Thêm ${idInfo(e.id).P.icon} ${esc(idInfo(e.id).display)}? Gõ <code>/add ${esc(text.trim())}</code>`);
+        }
       }
   }
 }
@@ -335,6 +371,6 @@ function welcome(cfg) {
   return (
     `<b>📺 TikTok Live → TRMNL</b>\n\n` +
     `Đang theo dõi <b>${cfg.users.length}</b> người · kiểm tra mỗi <b>${cfg.intervalMin} phút</b>.\n` +
-    `Khi ai đó live, màn hình TRMNL hiện ảnh chụp phòng live; không live thì hiện <b>OFFLINE</b>.`
+    `Hỗ trợ 🎵 TikTok · ▶️ YouTube · 📘 Facebook.\nKhi ai đó live, màn hình TRMNL hiện ảnh phòng live; không live thì hiện <b>OFFLINE</b>.`
   );
 }

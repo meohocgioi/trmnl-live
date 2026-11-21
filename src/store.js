@@ -1,6 +1,8 @@
 // Lưu trữ trong Cloudflare KV
+import { migrateUsers } from './platforms.js';
+
 export const DEFAULT_CONFIG = {
-  users: ['embechiiu_', 'ducnguyen37999'],
+  users: ['tt-embechiiu_', 'tt-ducnguyen37999'], // id dạng <tt|yt|fb>-<handle>
   intervalMin: 10,        // bao lâu kiểm tra 1 lần (phút)
   shotMode: 'screen',     // 'screen' = chụp màn hình live bằng trình duyệt, 'cover' = ảnh cover phòng live
   notify: true,           // báo Telegram khi ai đó bắt đầu / kết thúc live
@@ -10,7 +12,9 @@ export const DEFAULT_CONFIG = {
 
 export async function getConfig(env) {
   const c = await env.KV.get('config', 'json');
-  return { ...DEFAULT_CONFIG, ...(c || {}) };
+  const cfg = { ...DEFAULT_CONFIG, ...(c || {}) };
+  cfg.users = migrateUsers(cfg.users);
+  return cfg;
 }
 
 export async function saveConfig(env, cfg) {

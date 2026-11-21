@@ -41,8 +41,9 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
           TIKTOK_COOKIE: ${{ secrets.TIKTOK_COOKIE }}
+          FACEBOOK_COOKIE: ${{ secrets.FACEBOOK_COOKIE }}
         run: |
-          for NAME in TELEGRAM_BOT_TOKEN TELEGRAM_OWNER_ID TIKTOK_COOKIE; do
+          for NAME in TELEGRAM_BOT_TOKEN TELEGRAM_OWNER_ID TIKTOK_COOKIE FACEBOOK_COOKIE; do
             VAL="${!NAME}"
             if [ -n "$VAL" ]; then
               printf '%s' "$VAL" | npx wrangler secret put "$NAME"

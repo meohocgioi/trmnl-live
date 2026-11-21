@@ -2,6 +2,7 @@ import { runCheck } from './check.js';
 import { getConfig, getState, getImage } from './store.js';
 import { handleTelegram, setupWebhook } from './telegram.js';
 import { fmtTime, fmtDateTime } from './util.js';
+import { idInfo } from './platforms.js';
 
 const json = (o, status = 200) =>
   new Response(JSON.stringify(o, null, 2), {
@@ -13,23 +14,28 @@ const json = (o, status = 200) =>
 async function trmnlPayload(env, origin) {
   const cfg = await getConfig(env);
   const st = await getState(env);
-  let list = cfg.users.map((name) => ({ name, s: st.users[name] || {} }));
+  let list = cfg.users.map((id) => ({ id, s: st.users[id] || {} }));
   if (list.length > 3) list = [...list].sort((a, b) => (b.s.live ? 1 : 0) - (a.s.live ? 1 : 0)).slice(0, 3);
 
-  const users = list.map(({ name, s }) => ({
-    user: name,
-    nickname: s.nickname || name,
-    live: !!s.live,
-    unknown: !!s.unknown,
-    title: s.title || '',
-    viewers: s.viewers ?? '',
-    image: s.live && s.shotAt ? `${origin}/img/shot/${name}?v=${s.shotAt}` : null,
-    shot_kind: s.shotKind || null,
-    avatar: s.avatarAt ? `${origin}/img/avatar/${name}?v=${s.avatarAt}` : null,
-    checked: fmtTime(s.checkedAt) || '--:--',
-    shot: fmtTime(s.shotAt) || '',
-    since: fmtTime(s.liveSince) || '',
-  }));
+  const users = list.map(({ id, s }) => {
+    const I = idInfo(id);
+    return {
+      id,
+      platform: I.P.name,
+      user: I.display,
+      nickname: s.nickname || I.display,
+      live: !!s.live,
+      unknown: !!s.unknown,
+      title: s.title || '',
+      viewers: s.viewers ?? '',
+      image: s.live && s.shotAt ? `${origin}/img/shot/${id}?v=${s.shotAt}` : null,
+      shot_kind: s.shotKind || null,
+      avatar: s.avatarAt ? `${origin}/img/avatar/${id}?v=${s.avatarAt}` : null,
+      checked: fmtTime(s.checkedAt) || '--:--',
+      shot: fmtTime(s.shotAt) || '',
+      since: fmtTime(s.liveSince) || '',
+    };
+  });
   return {
     updated: fmtDateTime(Date.now()),
     count: users.length,
@@ -47,7 +53,7 @@ export default {
 
     if (p === '/trmnl') return json(await trmnlPayload(env, url.origin));
 
-    const m = p.match(/^\/img\/(shot|avatar)\/([\w.]+)$/);
+    const m = p.match(/^\/img\/(shot|avatar)\/([\w.@-]+)$/);
     if (m) {
       const { value, metadata } = await getImage(env, `${m[1]}:${m[2]}`);
       if (!value) return new Response('no image', { status: 404 });
@@ -56,10 +62,13 @@ export default {
       });
     }
 
-    const dbg = p.match(/^\/debug\/([\w.]+)$/);
+    const dbg = p.match(/^\/debug\/([\w.@-]+)$/);
     if (dbg) {
-      const { checkLive } = await import('./tiktok.js');
-      return json(await checkLive(dbg[1].toLowerCase(), env));
+      const { checkOne } = await import('./check.js');
+      const { parseEntry } = await import('./platforms.js');
+      const e = parseEntry(dbg[1].replace(/^(tt|yt|fb)-/, '$1 '));
+      if (!e) return json({ error: 'id không hợp lệ' }, 400);
+      return json({ id: e.id, ...(await checkOne(e.id, env)) });
     }
 
     // Thử đọc trang YouTube/Facebook từ Cloudflare (chẩn đoán)

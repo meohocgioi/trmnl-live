@@ -1,6 +1,6 @@
 # TRMNL Live – TikTok Live trên TRMNL
 
-Plugin TRMNL hiện trạng thái live của các tài khoản TikTok:
+Plugin TRMNL hiện trạng thái live của các tài khoản **TikTok, YouTube, Facebook**:
 
 - **Đang live** → ảnh chụp màn hình phòng live hiện tại.
 - **Không live** → avatar + chữ **OFFLINE**.
@@ -27,6 +27,7 @@ Repo → *Settings → Secrets and variables → Actions → New repository secr
 | `TELEGRAM_BOT_TOKEN` | token từ @BotFather | cho bot |
 | `TELEGRAM_OWNER_ID` | Telegram user ID của bạn | không (nếu bỏ trống, người đầu tiên bấm /start là chủ) |
 | `TIKTOK_COOKIE` | cookie TikTok (nếu phòng live yêu cầu đăng nhập) | không |
+| `FACEBOOK_COOKIE` | cookie Facebook (bắt buộc nếu theo dõi Facebook; nên dùng tài khoản phụ) | cho Facebook |
 
 Sau đó vào tab **Actions → Deploy Worker → Run workflow**.
 
@@ -36,7 +37,11 @@ Tạo **Private Plugin** → Strategy **Polling** → Polling URL:
 Markup: dán nội dung file [`trmnl/full.liquid`](trmnl/full.liquid).
 
 ## Lệnh Telegram
-`/status` `/shot` `/shot username` `/add username|link` `/remove username` `/list` `/settings` `/trmnl` `/help`
+`/status` `/shot` `/shot tên` `/add link` (TikTok/YouTube/Facebook) `/add yt tên` `/add fb tên` `/add tt tên` `/remove tên` `/list` `/settings` `/trmnl` `/help`
+
+- TikTok: chụp màn hình phòng live (tốn quota trình duyệt), dự phòng ảnh cover.
+- YouTube: ảnh thumbnail live do YouTube cập nhật, không tốn quota.
+- Facebook (thử nghiệm): cần `FACEBOOK_COOKIE`.
 
 ## Giới hạn gói Free
 - Browser Rendering: 10 phút/ngày → bot tự dừng chụp màn hình ở 540s và chuyển sang ảnh cover.

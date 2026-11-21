@@ -7,14 +7,10 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe YouTube/Facebook from Cloudflare
+      - name: Debug live check from Cloudflare
         run: |
-          W=https://trmnl-live.meohocgioi.workers.dev/probe
-          p() { echo "=== $1 [$2] k=$3"; curl -s -G "$W" --data-urlencode "u=$1" --data-urlencode "ua=$2" --data-urlencode "k=$3"; echo; }
-          p "https://www.youtube.com/@LofiGirl/live" chrome 'isLiveNow'
-          p "https://www.youtube.com/@NASA/live" chrome 'isLiveNow'
-          p "https://www.facebook.com/nasa" chrome 'is_live'
-          p "https://www.facebook.com/nasa" fbbot 'live'
-          p "https://www.facebook.com/nasa/live" fbbot 'live'
-          p "https://www.facebook.com/nasa/live_videos" chrome 'is_live'
-          p "https://m.facebook.com/nasa/live_videos" google 'live'
+          W=https://trmnl-live.meohocgioi.workers.dev
+          for id in yt-nasa yt-lofigirl yt-mrbeast yt-UCX6OQ3DkcsbYNE6H8uQQuVA tt-embechiiu_ fb-nasa; do
+            echo "=== $id"; curl -s "$W/debug/$id" | grep -vE '"(avatar|cover)"'; echo
+          done
+          echo "=== /trmnl"; curl -s "$W/trmnl"
