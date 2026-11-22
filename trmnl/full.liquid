@@ -3,6 +3,37 @@
 {% assign n = users.size %}{% if n > 4 %}{% assign n = 4 %}{% endif %}
 <div class="layout" style="padding:0;">
   <div class="lc">
+    {% if layout %}
+    <div class="cg">
+      {% for c in layout.cells %}
+      {% assign u = users[c.i] %}
+      <div class="slot" style="left:{{ c.x }}%;top:{{ c.y }}%;width:{{ c.w }}%;height:{{ c.h }}%;">
+        <div class="lc-card lv sz-{{ c.size }}">
+          <div class="lv-head">
+            <span class="lv-name">{{ u.user }}</span>
+            <span class="lv-tag">LIVE</span>
+            {% if u.viewers != "" %}<span class="lv-eye">{{ u.viewers }}<svg viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M12 5C6.5 5 2.7 8.6 1 12c1.7 3.4 5.5 7 11 7s9.3-3.6 11-7c-1.7-3.4-5.5-7-11-7zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg></span>{% endif %}
+          </div>
+          <div class="lv-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="lv-ph">LIVE</div>{% endif %}</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if layout.off %}
+      <div class="slot offb {{ layout.off.dir }}" style="left:{{ layout.off.x }}%;top:{{ layout.off.y }}%;width:{{ layout.off.w }}%;height:{{ layout.off.h }}%;">
+        {% for u in users limit:4 %}{% unless u.live %}
+        <div class="off-cell">
+          {% if u.avatar %}<img class="image-dither off-ava" src="{{ u.avatar }}">{% endif %}
+          <div class="off-txt">
+            <div class="off-name">{{ u.user }}</div>
+            <div class="off-state">{% if u.unknown %}???{% else %}OFFLINE{% endif %}</div>
+            <div class="off-sub">{{ u.platform }} · {{ u.checked }}</div>
+          </div>
+        </div>
+        {% endunless %}{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
     <div class="lc-main {% if nl > 0 %}mix l{{ nl }}{% else %}n{{ n }}{% endif %}">
       {% if nl > 0 %}
         {% assign offs = users | where: "live", false %}
@@ -46,6 +77,7 @@
         {% if n == 0 %}<div style="margin:auto;font-size:28px;">Chưa theo dõi ai — dùng /add trên Telegram</div>{% endif %}
       {% endif %}
     </div>
+    {% endif %}
     {% if nl == 0 %}
     <div class="sb">
       {% for u in users limit:4 %}

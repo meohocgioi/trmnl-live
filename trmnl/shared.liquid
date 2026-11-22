@@ -38,6 +38,22 @@
   .off-col.c1 .off-cell{flex-direction:column;justify-content:center;text-align:center;}
   .off-col.c1 .off-ava{width:90px;height:90px}.off-col.c1 .off-name{font-size:18px}.off-col.c1 .off-state{font-size:24px}
   .off-col.c2 .off-ava{width:60px;height:60px}.off-col.c2 .off-name{font-size:16px}.off-col.c2 .off-state{font-size:19px}
+  /* --- Collage tự tính (layout từ Worker) --- */
+  .cg{position:relative;flex:1;min-height:0;}
+  .slot{position:absolute;display:flex;}
+  .slot > .lc-card{flex:1;}
+  .sz-s .lv-head{font-size:13px;gap:5px;padding:3px 6px}.sz-s .lv-tag{border-width:1px;padding:0 4px}
+  .sz-m .lv-head{font-size:16px;gap:6px;padding:4px 8px}
+  .sz-l .lv-head{font-size:20px;padding:5px 12px}
+  .offb{display:flex;gap:8px;}
+  .offb.col{flex-direction:column;}
+  .offb.row{flex-direction:row;}
+  .offb.grid{flex-wrap:wrap;align-content:stretch;}
+  .offb .off-cell{flex:1 1 0;min-width:0;}
+  .offb.grid .off-cell{flex:1 1 40%;}
+  .offb.row .off-ava{width:44px;height:44px}.offb.row .off-state{font-size:15px}.offb.row .off-name{font-size:14px}
+  .offb.grid .off-cell{flex-direction:column;justify-content:center;text-align:center;}
+  .offb.grid .off-ava{width:84px;height:84px}.offb.grid .off-name{font-size:17px}.offb.grid .off-state{font-size:22px}
   /* --- Thanh trạng thái --- */
   .sb{flex:none;display:flex;align-items:center;gap:6px;height:34px;}
   .sb-i{flex:1;min-width:0;display:flex;align-items:center;gap:5px;font-size:13px;padding:4px 8px;border-radius:6px;border:2px solid #000;white-space:nowrap;}
