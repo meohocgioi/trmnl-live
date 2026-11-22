@@ -19,7 +19,7 @@
       </div>
       {% endfor %}
       {% if layout.off %}
-      <div class="slot offb {{ layout.off.dir }}" style="left:{{ layout.off.x }}%;top:{{ layout.off.y }}%;width:{{ layout.off.w }}%;height:{{ layout.off.h }}%;">
+      <div class="slot offb ob-{{ layout.off.dir }}" style="left:{{ layout.off.x }}%;top:{{ layout.off.y }}%;width:{{ layout.off.w }}%;height:{{ layout.off.h }}%;">
         {% for u in users limit:4 %}{% unless u.live %}
         <div class="off-cell">
           {% if u.avatar %}<img class="image-dither off-ava" src="{{ u.avatar }}">{% endif %}
