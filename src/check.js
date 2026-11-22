@@ -49,7 +49,7 @@ export async function runCheck(env, opts = {}) {
   const st = await getState(env);
   const now = Date.now();
 
-  if (!force && now - (st.lastRun || 0) < cfg.intervalMin * 60000 - 30000) {
+  if (!force && now - (st.lastRun || 0) < cfg.intervalMin * 60000 - 150000) {
     return { skipped: true, st, cfg };
   }
 
