@@ -4,28 +4,15 @@
 <div class="layout" style="padding:0;">
   <div class="lc">
     <div class="lc-main {% if nl > 0 %}l{{ nl }}{% else %}n{{ n }}{% endif %}">
-      {% if nl == 1 %}
-        {% assign u = lives.first %}
-        <div class="lc-card solo">
-          <div class="lv-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="lv-ph">LIVE</div>{% endif %}</div>
-          <div class="lv-side">
-            <div class="lv-pill">● ĐANG LIVE</div>
-            <div class="lv-name">{{ u.user }}</div>
-            <div class="lv-meta">{{ u.platform }}{% if u.nickname != u.user %} · {{ u.nickname }}{% endif %}</div>
-            {% if u.title != "" %}<div class="lv-title">{{ u.title }}</div>{% endif %}
-            {% if u.viewers != "" %}<div class="lv-meta"><b>{{ u.viewers }}</b> người xem</div>{% endif %}
-            <div class="lv-meta">{% if u.since != "" %}Live từ {{ u.since }} · {% endif %}Ảnh lúc {{ u.shot }}</div>
-          </div>
-        </div>
-      {% elsif nl > 1 %}
+      {% if nl > 0 %}
         {% for u in lives limit:nl %}
         <div class="lc-card lv">
-          <div class="lv-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="lv-ph">LIVE</div>{% endif %}</div>
-          <div class="lv-badge">● LIVE</div>
-          <div class="lv-cap">
-            <div class="lv-name">{{ u.user }}</div>
-            <div class="lv-meta">{{ u.platform }}{% if u.viewers != "" %} · {{ u.viewers }} xem{% endif %} · {{ u.shot }}</div>
+          <div class="lv-head">
+            <span class="lv-name">{{ u.user }}</span>
+            <span class="lv-tag">LIVE</span>
+            {% if u.viewers != "" %}<span class="lv-eye">{{ u.viewers }}<svg viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M12 5C6.5 5 2.7 8.6 1 12c1.7 3.4 5.5 7 11 7s9.3-3.6 11-7c-1.7-3.4-5.5-7-11-7zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg></span>{% endif %}
           </div>
+          <div class="lv-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="lv-ph">LIVE</div>{% endif %}</div>
         </div>
         {% endfor %}
       {% else %}

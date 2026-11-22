@@ -11,26 +11,18 @@
   .n2 .lc-ava{width:130px;height:130px}.n2 .lc-state{font-size:52px;letter-spacing:3px;margin-top:14px}.n2 .lc-name{font-size:23px;margin-top:9px}.n2 .lc-sub{font-size:16px;margin-top:3px}
   .n3 .lc-ava{width:104px;height:104px}.n3 .lc-state{font-size:37px;letter-spacing:1px;margin-top:12px}.n3 .lc-name{font-size:18px;margin-top:8px}.n3 .lc-sub{font-size:13px;margin-top:3px}
   .n4 .lc-ava{width:84px;height:84px}.n4 .lc-state{font-size:28px;margin-top:10px}.n4 .lc-name{font-size:15px;margin-top:7px}.n4 .lc-sub{font-size:12px;margin-top:2px}
-  /* --- LIVE --- */
-  .lv{justify-content:flex-start;text-align:left;}
+  /* --- LIVE: thanh tiêu đề + ảnh màn hình chiếm phần còn lại --- */
+  .lv{justify-content:flex-start;}
+  .lv-head{width:100%;flex:none;display:flex;align-items:center;gap:8px;background:#000;color:#fff;font-weight:800;padding:5px 10px;white-space:nowrap;line-height:1.2;text-align:left;}
+  .lv-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  .lv-tag{flex:none;border:2px solid #fff;border-radius:5px;padding:0 6px;font-size:0.8em;letter-spacing:1px;}
+  .lv-eye{flex:none;display:flex;align-items:center;gap:4px;}
+  .lv-eye svg{width:1.15em;height:1.15em;}
   .lv-img{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;}
   .lv-img img{width:100%;height:100%;object-fit:contain;}
   .lv-ph{font-size:40px;font-weight:900;}
-  .lv-badge{position:absolute;top:6px;left:6px;background:#000;color:#fff;font-weight:800;padding:2px 8px;border-radius:6px;border:2px solid #fff;}
-  .lv-cap{width:100%;border-top:2px solid #000;padding:4px 8px;line-height:1.25;background:#fff;}
-  .lv-name{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .lv-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .l2 .lv-badge{font-size:16px}.l2 .lv-name{font-size:19px}.l2 .lv-meta{font-size:14px}
-  .l3 .lv-badge{font-size:14px}.l3 .lv-name{font-size:16px}.l3 .lv-meta{font-size:12px}
-  .l4 .lv-badge{font-size:12px;padding:1px 6px}.l4 .lv-name{font-size:14px}.l4 .lv-meta{font-size:11px}.l4 .lv-cap{padding:3px 5px}
-  /* 1 người live: ảnh lớn + khung thông tin */
-  .solo{flex-direction:row;}
-  .solo .lv-img{height:100%;}
-  .solo .lv-side{width:280px;flex:none;height:100%;border-left:2px solid #000;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;gap:8px;text-align:left;}
-  .lv-pill{align-self:flex-start;background:#000;color:#fff;font-weight:900;font-size:22px;padding:4px 12px;border-radius:8px;}
-  .solo .lv-name{font-size:28px;}
-  .solo .lv-meta{font-size:16px;}
-  .lv-title{font-size:17px;line-height:1.3;max-height:5.3em;overflow:hidden;}
+  .l1 .lv-head{font-size:22px;padding:6px 14px}.l2 .lv-head{font-size:18px}.l3 .lv-head{font-size:15px;gap:6px;padding:4px 7px}.l4 .lv-head{font-size:13px;gap:5px;padding:3px 6px}
+  .l3 .lv-tag,.l4 .lv-tag{border-width:1px;padding:0 4px}
   /* --- Thanh trạng thái --- */
   .sb{flex:none;display:flex;align-items:center;gap:6px;height:34px;}
   .sb-i{flex:1;min-width:0;display:flex;align-items:center;gap:5px;font-size:13px;padding:4px 8px;border-radius:6px;border:2px solid #000;white-space:nowrap;}

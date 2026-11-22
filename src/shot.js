@@ -66,7 +66,17 @@ export async function screenshotTargets(env, targets) {
             if (pos === 'fixed' || pos === 'sticky') hide(el);
           }
           // Gom cụm: video lớn nhất + các video khách mời nằm sát nó (bỏ video gợi ý ở chỗ khác)
-          const rects = vids.map((v) => v.getBoundingClientRect()).sort((a, b) => b.width * b.height - a.width * a.height);
+          // Vùng hình thật của video (bỏ viền đen do object-fit: contain)
+          const content = (v) => {
+            const r = v.getBoundingClientRect();
+            const fit = getComputedStyle(v).objectFit;
+            if (fit === 'cover' || fit === 'fill' || !v.videoWidth || !v.videoHeight) return r;
+            const sc = Math.min(r.width / v.videoWidth, r.height / v.videoHeight);
+            const w = v.videoWidth * sc, h = v.videoHeight * sc;
+            const left = r.left + (r.width - w) / 2, top = r.top + (r.height - h) / 2;
+            return { left, top, right: left + w, bottom: top + h, width: w, height: h };
+          };
+          const rects = vids.map(content).sort((a, b) => b.width * b.height - a.width * a.height);
           let x1 = rects[0].left, y1 = rects[0].top, x2 = rects[0].right, y2 = rects[0].bottom;
           const used = new Set([0]);
           for (let changed = true; changed; ) {
