@@ -1,6 +1,8 @@
 // Tự tính bố cục collage cho TRMNL.
 // Thử mọi cách chia màn hình (cạnh nhau / chồng nhau, lồng nhau), kích thước chia theo tỉ lệ ảnh.
 // Tiêu chí CÂN BẰNG: tổng log(diện tích hình) — để không ai bị bé tí; ô offline cũng nằm trong collage.
+import TABLE from './layouts.json' with { type: 'json' };
+import { bucketOf, keyOf } from './layout-const.js';
 const W = 780; // vùng nội dung xấp xỉ (px) của TRMNL 800x480
 const H_FULL = 452;
 const STATUS_H = 42; // chiều cao thanh trạng thái + khoảng cách
@@ -78,7 +80,7 @@ const pct = (v, total) => Math.round((v / total) * 10000) / 100;
  * offCount: số người offline cần hiện
  * Trả: { cells:[{i,x,y,w,h,size}], off:{x,y,w,h,dir} | null }  (đơn vị %)
  */
-export function computeLayout(live, offCount, hasStatus = false) {
+function computeLayoutLegacy(live, offCount, hasStatus = false) {
   if (!live.length) return null;
   H = hasStatus ? H_FULL - STATUS_H : H_FULL;
   const items = live.map((l) => ({ ...l }));
@@ -111,5 +113,23 @@ export function computeLayout(live, offCount, hasStatus = false) {
           dir: offCount > 1 && offCell.w / offCell.h > 2.2 ? 'row' : offCount > 2 && offCell.w > 330 && offCell.h > 220 ? 'grid' : 'col',
         }
       : null,
+  };
+}
+
+/**
+ * Tra bảng bố cục đã tính sẵn (scripts/gen-layouts.mjs) → gần như 0 ms CPU.
+ * live: [{ i, ar }], offCount: số người bật Screen đang offline, hasStatus: có thanh Status không
+ * Trả: { cells:[{i,x,y,w,h,size}], off:{x,y,w,h,dir}|null, sb:null|'bottom'|'side', sw:% bề rộng cột status }
+ */
+export function computeLayout(live, offCount, hasStatus = false) {
+  if (!live.length) return null;
+  const sorted = live.map((l) => ({ ...l, b: bucketOf(l.ar) })).sort((p, q) => p.b - q.b || p.i - q.i);
+  const e = TABLE[keyOf(sorted.map((l) => l.b), offCount, hasStatus)];
+  if (!e) return { ...computeLayoutLegacy(live, offCount, hasStatus), sb: hasStatus ? 'bottom' : null, sw: 0 };
+  return {
+    sb: e.sb,
+    sw: e.sw,
+    cells: e.c.map(([k, x, y, w, h, size]) => ({ i: sorted[k].i, x, y, w, h, size })),
+    off: e.o ? { x: e.o[0], y: e.o[1], w: e.o[2], h: e.o[3], dir: e.o[4] } : null,
   };
 }

@@ -4,8 +4,9 @@
   {% unless u.screen == false %}{% assign n = n | plus: 1 %}{% if u.live %}{% assign nl = nl | plus: 1 %}{% endif %}{% endunless %}
   {% unless u.status == false %}{% assign sc = sc | plus: 1 %}{% endunless %}
 {% endfor %}
+{% assign side = false %}{% if layout and nl > 0 and layout.sb == "side" and sc > 0 %}{% assign side = true %}{% endif %}
 <div class="layout" style="padding:0;">
-  <div class="lc">
+  <div class="lc{% if side %} side{% endif %}">
     {% if layout and nl > 0 %}
     <div class="cg">
       {% for c in layout.cells %}
@@ -60,7 +61,21 @@
       {% if sc == 0 %}<div style="margin:auto;font-size:24px;">Bật Screen hoặc Status trong Danh sách trên Telegram</div>{% endif %}
     </div>
     {% endif %}
-    {% if n > 0 and sc > 0 %}
+    {% if side %}
+    <div class="sbs{% if layout.sw < 30 %} nar{% elsif layout.sw > 40 %} wide{% endif %}" style="width:calc({{ layout.sw }}% - 8px);">
+      {% for u in users limit:4 %}{% unless u.status == false %}
+      <div class="sbs-row{% if u.live %} on{% endif %}">
+        {% if u.avatar %}<img class="image-dither sbs-ava" src="{{ u.avatar }}">{% endif %}
+        <div class="sbs-txt">
+          <div class="sbs-name">{{ u.user }}</div>
+          <div class="sbs-st">{% if u.live %}● LIVE{% if u.viewers != "" %} {{ u.viewers }}{% endif %}{% elsif u.unknown %}???{% else %}OFFLINE{% endif %}</div>
+          <div class="sbs-sub">{{ u.platform }} · {{ u.checked }}</div>
+        </div>
+      </div>
+      {% endunless %}{% endfor %}
+      <div class="sbs-t">{{ updated }}</div>
+    </div>
+    {% elsif n > 0 and sc > 0 %}
     <div class="sb">
       {% for u in users limit:4 %}{% unless u.status == false %}
       <div class="sb-i{% if u.live %} on{% endif %}">

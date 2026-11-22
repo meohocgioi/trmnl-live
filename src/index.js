@@ -49,14 +49,7 @@ async function trmnlPayload(env, origin) {
   const offCount = users.filter((u) => u.screen && !u.live).length;
   const hasStatus = users.some((u) => u.status);
   let layout = null;
-  if (live.length) {
-    const sig = 'layout2:' + live.map((l) => `${l.i}:${Math.round(l.ar * 50) / 50}`).join(',') + '|' + offCount + (hasStatus ? 's' : '');
-    layout = await env.KV.get(sig, 'json');
-    if (!layout) {
-      layout = computeLayout(live.map((l) => ({ i: l.i, ar: Math.round(l.ar * 50) / 50 })), offCount, hasStatus);
-      await env.KV.put(sig, JSON.stringify(layout), { expirationTtl: 7 * 86400 });
-    }
-  }
+  if (live.length) layout = computeLayout(live.map((l) => ({ i: l.i, ar: l.ar })), offCount, hasStatus);
   return {
     updated: fmtDateTime(Date.now()),
     layout,
