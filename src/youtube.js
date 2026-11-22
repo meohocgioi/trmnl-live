@@ -38,17 +38,21 @@ async function fromStreams(handle) {
     if (i >= 0 && (at < 0 || i < at)) at = i;
   }
   if (at < 0) return out;
-  const k1 = h.lastIndexOf('"videoId":"', at), k2 = h.lastIndexOf('"contentId":"', at);
-  const k = Math.max(k1, k2);
-  if (k < 0) return out;
-  const vid = k === k1 ? h.slice(k1 + 11, k1 + 22) : h.slice(k2 + 13, k2 + 24);
-  if (!/^[\w-]{11}$/.test(vid)) return out;
-  const win = h.slice(k, at + 4000);
+  // Mã video: ngay sau nhãn LIVE (định dạng mới) hoặc trong link ảnh /vi/<id>/ phía trước
+  let vid = (h.slice(at, at + 400).match(/"animationActivationTargetId":"([\w-]{11})"/) || [])[1];
+  if (!vid) {
+    const before = h.slice(Math.max(0, at - 3000), at);
+    const ms = [...before.matchAll(/\/vi\/([\w-]{11})\//g), ...before.matchAll(/"(?:videoId|contentId)":"([\w-]{11})"/g)];
+    vid = ms.length ? ms[ms.length - 1][1] : null;
+  }
+  if (!vid) return out;
+  const win = h.slice(Math.max(0, at - 3000), at + 6000);
   out.live = true;
   out.videoId = vid;
   out.cover = `https://i.ytimg.com/vi/${vid}/maxresdefault_live.jpg`;
-  out.title = unJson(between(win, '"title":{"runs":[{"text":"', '"')) || unJson(between(win, '"title":{"content":"', '"'));
-  const vm = win.match(/"text":"([\d.,KM]+)"\},\{"text":" watching/) || win.match(/"content":"([\d.,KM]+) watching/);
+  const after = h.slice(at, at + 6000);
+  out.title = unJson(between(after, '"title":{"content":"', '"')) || unJson(between(win, '"title":{"runs":[{"text":"', '"'));
+  const vm = after.match(/"content":"([\d.,KMB]+) watching/) || win.match(/"text":"([\d.,KM]+)"\},\{"text":" watching/);
   if (vm) out.viewers = vm[1];
   return out;
 }
