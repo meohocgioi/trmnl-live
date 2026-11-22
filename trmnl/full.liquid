@@ -1,40 +1,55 @@
-<style>
-  .lc-wrap{display:flex;gap:8px;width:100%;height:100%;font-family:'Inter','Helvetica Neue',Arial,sans-serif;}
-  .lc-card{flex:1;min-width:0;height:100%;position:relative;border:2px solid #000;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;text-align:center;}
-  .lc-img{width:100%;height:100%;object-fit:contain;background:#000;}
-  .lc-badge{position:absolute;top:6px;left:6px;background:#000;color:#fff;font-weight:800;padding:2px 8px;border-radius:6px;border:2px solid #fff;}
-  .lc-foot{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:2px solid #000;padding:3px 6px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .lc-ava{border-radius:50%;object-fit:cover;border:3px solid #000;}
-  .lc-state{font-weight:900;line-height:1;}
-  .lc-name{font-weight:700;max-width:94%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .lc-sub{max-width:94%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .n1 .lc-ava{width:170px;height:170px}.n1 .lc-state{font-size:72px;letter-spacing:4px;margin-top:18px}.n1 .lc-name{font-size:30px;margin-top:12px}.n1 .lc-sub{font-size:20px;margin-top:4px}.n1 .lc-badge{font-size:22px}.n1 .lc-foot{font-size:18px}
-  .n2 .lc-ava{width:140px;height:140px}.n2 .lc-state{font-size:54px;letter-spacing:3px;margin-top:16px}.n2 .lc-name{font-size:24px;margin-top:10px}.n2 .lc-sub{font-size:17px;margin-top:3px}.n2 .lc-badge{font-size:18px}.n2 .lc-foot{font-size:15px}
-  .n3 .lc-ava{width:110px;height:110px}.n3 .lc-state{font-size:38px;letter-spacing:1px;margin-top:14px}.n3 .lc-name{font-size:19px;margin-top:8px}.n3 .lc-sub{font-size:14px;margin-top:3px}.n3 .lc-badge{font-size:15px}.n3 .lc-foot{font-size:13px}
-  .n4 .lc-ava{width:90px;height:90px}.n4 .lc-state{font-size:29px;margin-top:12px}.n4 .lc-name{font-size:16px;margin-top:8px}.n4 .lc-sub{font-size:12px;margin-top:2px}.n4 .lc-badge{font-size:13px;padding:1px 6px}.n4 .lc-foot{font-size:12px;padding:2px 4px}
-</style>
+{% assign lives = users | where: "live", true %}
+{% assign nl = lives.size %}{% if nl > 4 %}{% assign nl = 4 %}{% endif %}
 {% assign n = users.size %}{% if n > 4 %}{% assign n = 4 %}{% endif %}
 <div class="layout" style="padding:0;">
-  <div class="lc-wrap n{{ n }}">
-    {% for u in users limit:4 %}
-    <div class="lc-card">
-      {% if u.live and u.image %}
-        <img class="image-dither lc-img" src="{{ u.image }}">
-        <div class="lc-badge">● LIVE</div>
-        <div class="lc-foot"><b>{{ u.user }}</b>{% if u.viewers != "" %} · {{ u.viewers }} xem{% endif %}<br>{{ u.platform }} · {{ u.shot }}</div>
+  <div class="lc">
+    <div class="lc-main {% if nl > 0 %}l{{ nl }}{% else %}n{{ n }}{% endif %}">
+      {% if nl == 1 %}
+        {% assign u = lives.first %}
+        <div class="lc-card solo">
+          <div class="lv-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="lv-ph">LIVE</div>{% endif %}</div>
+          <div class="lv-side">
+            <div class="lv-pill">● ĐANG LIVE</div>
+            <div class="lv-name">{{ u.user }}</div>
+            <div class="lv-meta">{{ u.platform }}{% if u.nickname != u.user %} · {{ u.nickname }}{% endif %}</div>
+            {% if u.title != "" %}<div class="lv-title">{{ u.title }}</div>{% endif %}
+            {% if u.viewers != "" %}<div class="lv-meta"><b>{{ u.viewers }}</b> người xem</div>{% endif %}
+            <div class="lv-meta">{% if u.since != "" %}Live từ {{ u.since }} · {% endif %}Ảnh lúc {{ u.shot }}</div>
+          </div>
+        </div>
+      {% elsif nl > 1 %}
+        {% for u in lives limit:nl %}
+        <div class="lc-card lv">
+          <div class="lv-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="lv-ph">LIVE</div>{% endif %}</div>
+          <div class="lv-badge">● LIVE</div>
+          <div class="lv-cap">
+            <div class="lv-name">{{ u.user }}</div>
+            <div class="lv-meta">{{ u.platform }}{% if u.viewers != "" %} · {{ u.viewers }} xem{% endif %} · {{ u.shot }}</div>
+          </div>
+        </div>
+        {% endfor %}
       {% else %}
-        {% if u.avatar %}<img class="image-dither lc-ava" src="{{ u.avatar }}">{% endif %}
-        <div class="lc-state">{% if u.live %}LIVE{% elsif u.unknown %}???{% else %}OFFLINE{% endif %}</div>
-        <div class="lc-name">{{ u.user }}</div>
-        <div class="lc-sub">{{ u.platform }}{% if u.nickname != u.user %} · {{ u.nickname }}{% endif %}</div>
-        <div class="lc-sub">Kiểm tra {{ u.checked }}</div>
+        {% for u in users limit:4 %}
+        <div class="lc-card">
+          {% if u.avatar %}<img class="image-dither lc-ava" src="{{ u.avatar }}">{% endif %}
+          <div class="lc-state">{% if u.unknown %}???{% else %}OFFLINE{% endif %}</div>
+          <div class="lc-name">{{ u.user }}</div>
+          <div class="lc-sub">{{ u.platform }}{% if u.nickname != u.user %} · {{ u.nickname }}{% endif %}</div>
+          <div class="lc-sub">Kiểm tra {{ u.checked }}</div>
+        </div>
+        {% endfor %}
+        {% if n == 0 %}<div style="margin:auto;font-size:28px;">Chưa theo dõi ai — dùng /add trên Telegram</div>{% endif %}
       {% endif %}
     </div>
-    {% endfor %}
-    {% if n == 0 %}<div style="margin:auto;font-size:28px;">Chưa theo dõi ai — dùng /add trên Telegram</div>{% endif %}
+    <div class="sb">
+      {% for u in users limit:4 %}
+      <div class="sb-i{% if u.live %} on{% endif %}">
+        <span>{% if u.live %}●{% elsif u.unknown %}?{% else %}○{% endif %}</span>
+        <span class="sb-n">{{ u.user }}</span>
+        <span class="sb-s">{% if u.live %}LIVE{% elsif u.unknown %}??{% else %}OFF{% endif %}</span>
+      </div>
+      {% endfor %}
+      <div class="sb-t">{{ updated }}</div>
+    </div>
   </div>
-</div>
-<div class="title_bar">
-  <span class="title">Live Check</span>
-  <span class="instance">{{ updated }}</span>
 </div>
