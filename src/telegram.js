@@ -103,7 +103,11 @@ function budgetLine(cfg, st) {
   const today = new Date().toISOString().slice(0, 10);
   const b = st.budget && st.budget.day === today ? st.budget : {};
   const used = b.cfSec != null ? b.cfSec : Math.round((b.ms || 0) / 1000);
-  return `🖥 Trình duyệt hôm nay: <b>${used}s</b> / ${cfg.browserDailySec}s` + (b.everyMin ? ` · chụp tự động ~${b.everyMin} phút/lần` : '');
+  const t = st.trmnl;
+  const sched = t && t.next
+    ? `\n📟 TRMNL lấy dữ liệu ~${Math.round(t.interval / 60000)} phút/lần, lần tới ~<b>${fmtTime(t.next)}</b> → ảnh live được chụp ngay trước đó`
+    : b.everyMin ? ` · chụp tự động ~${b.everyMin} phút/lần` : '';
+  return `🖥 Trình duyệt hôm nay: <b>${used}s</b> / ${cfg.browserDailySec}s` + sched;
 }
 
 function budgetSec(st) {

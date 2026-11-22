@@ -4,7 +4,7 @@ import { checkLive as ytCheck } from './youtube.js';
 import { checkLive as fbCheck } from './facebook.js';
 import { idInfo } from './platforms.js';
 import { screenshotTargets, browserUsedSec } from './shot.js';
-import { getConfig, getState, saveState, putImage, flagsOf } from './store.js';
+import { getConfig, getState, saveState, putImage, flagsOf, getPolls, pollSchedule } from './store.js';
 import { notifyEvents } from './telegram.js';
 import { imgSize, fmtTime } from './util.js';
 
@@ -46,12 +46,12 @@ async function checkAll(ids, env, st) {
  * opts.forceShot : chụp dù đã vượt quota tự đặt
  */
 export async function runCheck(env, opts = {}) {
-  const { force = false, only = null, forceShot = false } = opts;
+  const { force = false, only = null, forceShot = false, jit = false } = opts;
   const cfg = await getConfig(env);
   const st = await getState(env);
   const now = Date.now();
 
-  if (!force && now - (st.lastRun || 0) < cfg.intervalMin * 60000 - 150000) {
+  if (!force && now - (st.lastRun || 0) < cfg.intervalMin * 60000 - 30000) {
     return { skipped: true, st, cfg };
   }
 
@@ -109,7 +109,17 @@ export async function runCheck(env, opts = {}) {
     if (real != null) st.budget.cfSec = Math.round(real);
     const usedSec = real != null ? real : st.budget.ms / 1000;
     const avg = st.budget.avgSec || 18;
+    const sch = pollSchedule(await getPolls(env));
+    st.trmnl = sch ? { interval: sch.interval, next: sch.next } : null;
+    const fresh = live.some(({ id }) => {
+      const u = st.users[id] || {};
+      return !u.shotTriedAt || (u.liveSince && u.shotTriedAt < u.liveSince);
+    });
     if (forceShot) canBrowser = cfg.plan === 'paid' ? usedSec < cfg.browserDailySec + 600 : usedSec < 597;
+    // Chụp ngay trước lượt TRMNL lấy dữ liệu → mỗi lần TRMNL refresh đều có ảnh mới
+    else if (jit) canBrowser = usedSec < cfg.browserDailySec;
+    // Đã biết lịch TRMNL → các lượt kiểm tra thường chỉ chụp người vừa lên live (đỡ tốn)
+    else if (sch && cfg.plan === 'paid') canBrowser = fresh && usedSec < cfg.browserDailySec;
     else {
       const cap = cfg.browserDailySec;
       const vn = (now / 60000 + 7 * 60) % 1440; // phút trong ngày giờ VN
@@ -121,10 +131,6 @@ export async function runCheck(env, opts = {}) {
         const every = Math.max(cfg.intervalMin, remMin / Math.max(1, avail / avg));
         st.budget.everyMin = Math.round(every);
         // Ai vừa lên live mà chưa có ảnh chụp thật của phiên này → chụp ngay, không chờ lượt
-        const fresh = live.some(({ id }) => {
-          const u = st.users[id] || {};
-          return !u.shotTriedAt || (u.liveSince && u.shotTriedAt < u.liveSince);
-        });
         canBrowser = fresh || now - (st.budget.lastShotAt || 0) >= every * 60000 - 150000;
       }
     }

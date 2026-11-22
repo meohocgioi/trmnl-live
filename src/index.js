@@ -1,5 +1,5 @@
 import { runCheck } from './check.js';
-import { getConfig, getState, getImage } from './store.js';
+import { getConfig, getState, getImage, getPolls, recordPoll, pollSchedule } from './store.js';
 import { handleTelegram, setupWebhook } from './telegram.js';
 import { fmtTime, fmtDateTime } from './util.js';
 import { idInfo } from './platforms.js';
@@ -69,7 +69,10 @@ export default {
 
     if (p === '/' || p === '/health') return json({ ok: true, name: 'trmnl-live' });
 
-    if (p === '/trmnl') return json(await trmnlPayload(env, url.origin));
+    if (p === '/trmnl') {
+      ctx.waitUntil(recordPoll(env).catch(() => {}));
+      return json(await trmnlPayload(env, url.origin));
+    }
 
     const m = p.match(/^\/img\/(shot|avatar)\/([\w.@-]+)$/);
     if (m) {
@@ -127,7 +130,26 @@ export default {
     return new Response('Not found', { status: 404 });
   },
 
+  // Cron mỗi phút: nếu có người đang live và TRMNL sắp lấy dữ liệu → kiểm tra + chụp ảnh ngay trước lượt đó
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runCheck(env).catch((e) => console.error('runCheck', e)));
+    ctx.waitUntil(tick(env).catch((e) => console.error('tick', e)));
   },
 };
+
+async function tick(env) {
+  const now = Date.now();
+  const sch = pollSchedule(await getPolls(env));
+  if (sch) {
+    const st = await getState(env);
+    const anyLive = Object.values(st.users || {}).some((u) => u.live);
+    const lead = Math.min(180000, Math.max(80000, ((st.budget && st.budget.avgSec) || 20) * 1000 + 50000));
+    if (anyLive && now >= sch.next - lead && now < sch.next + 60000) {
+      const key = 'jit:' + Math.round(sch.next / 60000);
+      if (!(await env.KV.get(key))) {
+        await env.KV.put(key, '1', { expirationTtl: 600 });
+        return runCheck(env, { force: true, jit: true });
+      }
+    }
+  }
+  return runCheck(env);
+}

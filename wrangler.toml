@@ -6,7 +6,7 @@ workers_dev = true
 
 # Kiểm tra định kỳ mỗi 5 phút (bên trong tự bỏ qua nếu chưa tới "interval" đặt trong bot)
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["* * * * *"]
 
 # Cloudflare Browser Rendering (chụp màn hình phòng live)
 [browser]

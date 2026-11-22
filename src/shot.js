@@ -73,7 +73,7 @@ export async function screenshotTargets(env, targets) {
   let browser;
   try {
     browser = await openBrowser(env);
-    for (const t of targets) {
+    const one = async (t) => {
       const page = await browser.newPage();
       try {
         await page.setUserAgent(UA);
@@ -91,7 +91,7 @@ export async function screenshotTargets(env, targets) {
           .catch(() => false);
         if (!ok) {
           results[t.id] = { error: 'video không phát được (bị chặn / cần đăng nhập / chưa có hình)' };
-          continue;
+          return;
         }
         await page.keyboard.press('Escape').catch(() => {}); // đóng popup đăng nhập nếu có
         await sleep(1500);
@@ -157,7 +157,7 @@ export async function screenshotTargets(env, targets) {
         });
         if (!clip || clip.width < 60 || clip.height < 60) {
           results[t.id] = { error: 'không tìm thấy khung video' };
-          continue;
+          return;
         }
         await sleep(300);
         await page.evaluate(DISMISS).catch(() => {});
@@ -219,7 +219,10 @@ export async function screenshotTargets(env, targets) {
       } finally {
         await page.close().catch(() => {});
       }
-    }
+    };
+    // Chụp song song tối đa 2 trang một lúc (gói Paid) → nhanh hơn, ảnh mới hơn
+    const queue = [...targets];
+    await Promise.all([0, 1].map(async () => { for (let t; (t = queue.shift()); ) await one(t); }));
   } catch (e) {
     for (const t of targets) if (!results[t.id]) results[t.id] = { error: 'trình duyệt: ' + e.message };
   } finally {
