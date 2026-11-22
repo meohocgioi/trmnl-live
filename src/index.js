@@ -4,6 +4,7 @@ import { handleTelegram, setupWebhook } from './telegram.js';
 import { fmtTime, fmtDateTime } from './util.js';
 import { idInfo } from './platforms.js';
 import { MAX_USERS } from './store.js';
+import { computeLayout } from './layout.js';
 
 const json = (o, status = 200) =>
   new Response(JSON.stringify(o, null, 2), {
@@ -40,8 +41,12 @@ async function trmnlPayload(env, origin) {
       since: fmtTime(s.liveSince) || '',
     };
   });
+  // Bố cục collage khi có người live (tính theo tỉ lệ ảnh)
+  const live = users.map((u, i) => ({ i, ar: u.ar, live: u.live })).filter((u) => u.live);
+  const layout = live.length ? computeLayout(live, users.length - live.length) : null;
   return {
     updated: fmtDateTime(Date.now()),
+    layout,
     count: users.length,
     any_live: users.some((u) => u.live),
     users,

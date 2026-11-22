@@ -221,7 +221,7 @@ async function sendLivePhotos(env, chatId, st, names) {
     if (s && s.live && s.shotAt) {
       await sendPhotoFromKV(
         env, chatId, 'shot:' + n,
-        `🔴 ${idInfo(n).P.icon} <b>${esc(idInfo(n).display)}</b>${s.viewers != null && s.viewers !== '' ? ` · 👁 ${s.viewers}` : ''} · 📸 ${fmtTime(s.shotAt)}`,
+        `🔴 ${idInfo(n).P.icon} <b><a href="${idInfo(n).liveUrl}">${esc(idInfo(n).display)}</a></b>${s.viewers != null && s.viewers !== '' ? ` · 👁 ${s.viewers}` : ''} · 📸 ${fmtTime(s.shotAt)}`,
       );
     }
   }

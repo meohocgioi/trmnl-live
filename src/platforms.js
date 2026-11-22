@@ -10,7 +10,7 @@ export const PLAT = {
   yt: {
     name: 'YouTube',
     icon: '▶️',
-    live: (h) => (isYtChannelId(h) ? `https://www.youtube.com/channel/${h}/live` : `https://www.youtube.com/@${h}/live`),
+    live: (h) => (isYtChannelId(h) ? `https://www.youtube.com/channel/${h}/streams` : `https://www.youtube.com/@${h}/streams`),
     show: (h) => (isYtChannelId(h) ? h : '@' + h),
   },
   fb: {

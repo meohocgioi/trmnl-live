@@ -19,13 +19,57 @@ const unJson = (s) => {
   try { return JSON.parse('"' + s + '"'); } catch { return s; }
 };
 
+const YT_HEADERS = { 'user-agent': UA, 'accept-language': 'en-US,en;q=0.9', cookie: 'SOCS=CAI; CONSENT=YES+1' };
+const isUC = (h) => /^UC[\w-]{22}$/.test(h);
+
+// Đọc tab "Live/Streams" của kênh: video đầu tiên có nhãn LIVE = đang live
+async function fromStreams(handle) {
+  const url = isUC(handle) ? `https://www.youtube.com/channel/${handle}/streams` : `https://www.youtube.com/@${handle}/streams`;
+  const r = await fetch(url, { headers: YT_HEADERS });
+  if (!r.ok) throw new Error(`streams HTTP ${r.status}`);
+  const h = await r.text();
+  const out = { live: false, source: 'yt-streams' };
+  out.nickname = unHtml(between(h, '<meta property="og:title" content="', '"'));
+  const av = h.match(/https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[^"\\\s]+/);
+  if (av) out.avatar = av[0].replace(/=s\d+-/, '=s240-');
+  let at = -1;
+  for (const m of ['BADGE_STYLE_TYPE_LIVE_NOW', '"style":"LIVE"', 'THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE']) {
+    const i = h.indexOf(m);
+    if (i >= 0 && (at < 0 || i < at)) at = i;
+  }
+  if (at < 0) return out;
+  const k1 = h.lastIndexOf('"videoId":"', at), k2 = h.lastIndexOf('"contentId":"', at);
+  const k = Math.max(k1, k2);
+  if (k < 0) return out;
+  const vid = k === k1 ? h.slice(k1 + 11, k1 + 22) : h.slice(k2 + 13, k2 + 24);
+  if (!/^[\w-]{11}$/.test(vid)) return out;
+  const win = h.slice(k, at + 4000);
+  out.live = true;
+  out.videoId = vid;
+  out.cover = `https://i.ytimg.com/vi/${vid}/maxresdefault_live.jpg`;
+  out.title = unJson(between(win, '"title":{"runs":[{"text":"', '"')) || unJson(between(win, '"title":{"content":"', '"'));
+  const vm = win.match(/"text":"([\d.,KM]+)"\},\{"text":" watching/) || win.match(/"content":"([\d.,KM]+) watching/);
+  if (vm) out.viewers = vm[1];
+  return out;
+}
+
 export async function checkLive(handle, env) {
+  try {
+    return await fromStreams(handle);
+  } catch (e) {
+    const r = await checkLiveViaLivePage(handle, env);
+    if (r.error) r.error += ' | ' + e.message;
+    return r;
+  }
+}
+
+async function checkLiveViaLivePage(handle, env) {
   const out = {
     live: false, nickname: null, avatar: null, title: null, viewers: null,
     cover: null, videoId: null, error: null, source: null,
   };
   try {
-    const r = await fetch(PLAT.yt.live(handle), {
+    const r = await fetch(isUC(handle) ? `https://www.youtube.com/channel/${handle}/live` : `https://www.youtube.com/@${handle}/live`, {
       headers: { 'user-agent': UA, 'accept-language': 'en-US,en;q=0.9', cookie: 'SOCS=CAI; CONSENT=YES+1' },
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}${r.status === 404 ? ' (không thấy kênh)' : ''}`);

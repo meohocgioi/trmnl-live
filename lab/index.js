@@ -1,5 +1,6 @@
 // Thử: mở trang live TikTok, nghe dữ liệu chat (im/fetch + WebSocket) mà trang nhận về
 import puppeteer from '@cloudflare/puppeteer';
+import { checkLive as ytCheck } from '../src/youtube.js';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 function strs(b) {
@@ -37,6 +38,12 @@ export default {
 };
 
 async function run(req, env) {
+  const url0 = new URL(req.url);
+  if (url0.pathname === '/yt') {
+    const r = await ytCheck(url0.searchParams.get('h'), env);
+    delete r.avatar;
+    return new Response(JSON.stringify(r, null, 1), { headers: { 'content-type': 'application/json; charset=utf-8' } });
+  }
   {
     const u = new URL(req.url).searchParams.get('u') || 'quakhu.cuaanh';
     const wait = Number(new URL(req.url).searchParams.get('w') || 10000);

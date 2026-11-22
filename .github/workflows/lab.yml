@@ -20,4 +20,4 @@ jobs:
       - name: Test
         run: |
           sleep 8
-          curl -s --max-time 90 "https://trmnl-live-lab.meohocgioi.workers.dev/?u=quakhu.cuaanh&w=10000"
+          for h in tructiepgame-official lofigirl mrbeast; do echo "== $h"; curl -s --max-time 60 "https://trmnl-live-lab.meohocgioi.workers.dev/yt?h=$h"; echo; done
