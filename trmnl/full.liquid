@@ -5,8 +5,11 @@
   <div class="lc">
     <div class="lc-main {% if nl > 0 %}mix l{{ nl }}{% else %}n{{ n }}{% endif %}">
       {% if nl > 0 %}
+        {% assign offs = users | where: "live", false %}
+        {% assign no = offs.size %}{% assign room = 4 | minus: nl %}{% if no > room %}{% assign no = room %}{% endif %}
+        <div class="live-area{% if no == 0 %} full{% endif %}">
         {% for u in lives limit:nl %}
-        <div class="lc-card lv" style="--ar:{{ u.ar | default: 0.5625 }}">
+        <div class="lc-card lv">
           <div class="lv-head">
             <span class="lv-name">{{ u.user }}</span>
             <span class="lv-tag">LIVE</span>
@@ -15,8 +18,7 @@
           <div class="lv-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="lv-ph">LIVE</div>{% endif %}</div>
         </div>
         {% endfor %}
-        {% assign offs = users | where: "live", false %}
-        {% assign no = offs.size %}{% assign room = 4 | minus: nl %}{% if no > room %}{% assign no = room %}{% endif %}
+        </div>
         {% if no > 0 %}
         <div class="off-col c{{ no }}">
           {% for u in offs limit:no %}
@@ -44,6 +46,7 @@
         {% if n == 0 %}<div style="margin:auto;font-size:28px;">Chưa theo dõi ai — dùng /add trên Telegram</div>{% endif %}
       {% endif %}
     </div>
+    {% if nl == 0 %}
     <div class="sb">
       {% for u in users limit:4 %}
       <div class="sb-i{% if u.live %} on{% endif %}">
@@ -54,5 +57,6 @@
       {% endfor %}
       <div class="sb-t">{{ updated }}</div>
     </div>
+    {% endif %}
   </div>
 </div>
