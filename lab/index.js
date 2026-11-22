@@ -30,6 +30,14 @@ async function gunzipAll(b) {
 
 export default {
   async fetch(req, env) {
+    try { return await run(req, env); } catch (e) {
+      return new Response(JSON.stringify({ error: String(e && e.stack || e) }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+  },
+};
+
+async function run(req, env) {
+  {
     const u = new URL(req.url).searchParams.get('u') || 'quakhu.cuaanh';
     const wait = Number(new URL(req.url).searchParams.get('w') || 10000);
     const t0 = Date.now();
@@ -50,8 +58,9 @@ export default {
           } catch (e) { log.http.push({ url: url.slice(0, 90), err: String(e) }); }
         }
       });
-      const cdp = await page.target().createCDPSession();
-      await cdp.send('Network.enable');
+      let cdp = null;
+      try { cdp = await page.target().createCDPSession(); await cdp.send('Network.enable'); } catch (e) { log.cdpErr = String(e); }
+      if (cdp) {
       cdp.on('Network.webSocketCreated', (e) => { log.wsUrl = (e.url || '').slice(0, 120); });
       cdp.on('Network.webSocketFrameReceived', (e) => {
         log.ws++;
@@ -61,6 +70,7 @@ export default {
           log.wsBytes += b.length; bufs.push(b);
         } catch {}
       });
+      }
       await page.goto(`https://www.tiktok.com/@${u}/live`, { waitUntil: 'domcontentloaded', timeout: 25000 });
       await new Promise((r) => setTimeout(r, wait));
     } finally {
@@ -80,5 +90,5 @@ export default {
     log.strings = log.strings.slice(0, 150);
     log.ms = Date.now() - t0;
     return new Response(JSON.stringify(log, null, 1), { headers: { 'content-type': 'application/json; charset=utf-8' } });
-  },
-};
+  }
+}
