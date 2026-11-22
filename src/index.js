@@ -26,7 +26,8 @@ async function trmnlPayload(env, origin) {
       user: I.display,
       nickname: s.nickname || I.display,
       live: !!s.live,
-      unknown: !!s.unknown,
+      // Lỗi tạm thời (< 30 phút) -> vẫn hiện trạng thái cũ, không hiện ???
+      unknown: !!s.unknown && Date.now() - (s.lastOkAt || 0) > 30 * 60000,
       title: s.title || '',
       viewers: s.viewers ?? '',
       image: s.live && s.shotAt ? `${origin}/img/shot/${id}?v=${s.shotAt}` : null,

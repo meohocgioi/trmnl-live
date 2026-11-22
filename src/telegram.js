@@ -108,7 +108,8 @@ function userBlock(id, s, now) {
   const I = idInfo(id);
   const link = `${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a>`;
   const nick = s.nickname && s.nickname.toLowerCase() !== I.handle ? ` (${esc(s.nickname)})` : '';
-  const badge = s.unknown ? '❓ <b>KHÔNG RÕ</b>' : s.live ? '🔴 <b>LIVE</b>' : '⚫ <b>OFFLINE</b>';
+  const longFail = s.unknown && now - (s.lastOkAt || 0) > 30 * 60000;
+  const badge = longFail ? '❓ <b>KHÔNG RÕ</b>' : s.live ? '🔴 <b>LIVE</b>' : '⚫ <b>OFFLINE</b>';
   const L = [`${badge} · ${link}${nick}`];
   if (s.live) {
     if (s.title) L.push(`   📝 ${esc(s.title)}`);
@@ -118,7 +119,8 @@ function userBlock(id, s, now) {
     if (s.shotAt) L.push(`   📸 Ảnh lúc ${fmtTime(s.shotAt)} · ${KIND[s.shotKind] || 'ảnh'}`);
     if (s.shotError) L.push(`   ⚠️ <i>${esc(s.shotError)}</i>`);
   }
-  if (s.unknown && s.error) L.push(`   ⚠️ <i>${esc(s.error).slice(0, 300)}</i>`);
+  if (s.unknown && !longFail) L.push(`   ⚠️ <i>Lần kiểm tra vừa rồi bị ${idInfo(id).P.name} chặn — đang giữ trạng thái lần trước, sẽ thử lại</i>`);
+  if (longFail && s.error) L.push(`   ⚠️ <i>${esc(s.error).slice(0, 300)}</i>`);
   L.push(`   🕒 Kiểm tra lúc ${fmtTime(s.checkedAt) || '<i>chưa</i>'}`);
   return L.join('\n');
 }
@@ -163,7 +165,7 @@ function listView(cfg, st) {
   const rows = cfg.users.map((id, i) => {
     const I = idInfo(id);
     const u = st?.users?.[id] || {};
-    const dot = u.unknown ? '❓' : u.live ? '🔴' : '⚫';
+    const dot = u.unknown && Date.now() - (u.lastOkAt || 0) > 30 * 60000 ? '❓' : u.live ? '🔴' : '⚫';
     return `${i + 1}. ${dot} ${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a> · ${I.P.name}`;
   });
   const text =
@@ -255,7 +257,8 @@ async function doPreview(env, chatId, all) {
     const lines = cfg.users.slice(0, MAX_USERS).map((id) => {
       const s = st.users[id] || {};
       const I = idInfo(id);
-      return `${s.unknown ? '❓' : s.live ? '🔴' : '⚫'} ${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a>`;
+      const lf = s.unknown && Date.now() - (s.lastOkAt || 0) > 30 * 60000;
+      return `${lf ? '❓' : s.live ? '🔴' : '⚫'} ${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a>`;
     });
     for (let i = 0; i < imgs.length; i++) {
       const im = imgs[i];

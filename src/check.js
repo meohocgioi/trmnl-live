@@ -19,11 +19,23 @@ export async function saveRemoteImage(env, key, url, referer) {
   }
 }
 
-export async function checkOne(id, env) {
+export async function checkOne(id, env, prev = {}) {
   const { plat, handle } = idInfo(id);
   if (plat === 'yt') return ytCheck(handle, env);
   if (plat === 'fb') return fbCheck(handle, env);
-  return ttCheck(handle, env);
+  return ttCheck(handle, env, prev.roomId);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Kiểm tra lần lượt (không dồn dập) để TikTok/YouTube ít chặn hơn
+async function checkAll(ids, env, st) {
+  const out = [];
+  for (let i = 0; i < ids.length; i++) {
+    if (i) await sleep(800);
+    out.push(await checkOne(ids[i], env, st.users[ids[i]] || {}).catch((e) => ({ error: e.message })));
+  }
+  return out;
 }
 
 /**
@@ -45,7 +57,7 @@ export async function runCheck(env, opts = {}) {
   if (!st.budget || st.budget.day !== day) st.budget = { day, ms: 0 };
 
   const ids = only ? [only] : cfg.users;
-  const infos = await Promise.all(ids.map((id) => checkOne(id, env).catch((e) => ({ error: e.message }))));
+  const infos = await checkAll(ids, env, st);
   const events = [];
   const live = [];
 
@@ -55,8 +67,11 @@ export async function runCheck(env, opts = {}) {
     const u = { ...prev, checkedAt: now, error: info.error, source: info.source };
     if (!info.source) {
       u.unknown = true; // không đọc được -> giữ trạng thái cũ
+      u.failCount = (prev.failCount || 0) + 1;
     } else {
       u.unknown = false;
+      u.failCount = 0;
+      u.lastOkAt = now;
       if (info.live !== !!prev.live && prev.checkedAt) {
         events.push({ id, live: info.live, title: info.title, liveSince: prev.liveSince });
       }
@@ -66,6 +81,7 @@ export async function runCheck(env, opts = {}) {
       u.title = info.title || null;
       u.viewers = info.live ? info.viewers ?? null : null;
       u.nickname = info.nickname || prev.nickname || null;
+      if (info.roomId) u.roomId = info.roomId;
     }
     st.users[id] = u;
     if (u.live && !u.unknown) live.push({ id, info });

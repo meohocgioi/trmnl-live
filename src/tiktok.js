@@ -22,17 +22,25 @@ export function normUser(s) {
   return /^[\w.]{2,32}$/.test(s) ? s.toLowerCase() : null;
 }
 
-async function getJSON(url, env) {
-  const r = await fetch(url, { headers: headers(env, { accept: 'application/json' }) });
-  const t = await r.text();
-  try {
-    return JSON.parse(t);
-  } catch {
-    throw new Error(`HTTP ${r.status}, không phải JSON`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// TikTok thỉnh thoảng trả 403/429 cho Cloudflare -> thử lại 1 lần sau 1.5s
+async function getJSON(url, env, tries = 2) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    if (i) await sleep(1500);
+    const r = await fetch(url, { headers: headers(env, { accept: 'application/json' }) });
+    const t = await r.text();
+    try {
+      return JSON.parse(t);
+    } catch {
+      last = new Error(`HTTP ${r.status}, không phải JSON`);
+    }
   }
+  throw last;
 }
 
-export async function checkLive(user, env) {
+export async function checkLive(user, env, prevRoomId = null) {
   const out = {
     user, live: false, roomId: null, nickname: null, avatar: null,
     title: null, viewers: null, cover: null, error: null, source: null,
@@ -68,10 +76,13 @@ export async function checkLive(user, env) {
   // 2) Dự phòng: đọc roomId từ trang /live
   if (!out.source) {
     try {
-      const r = await fetch(`https://www.tiktok.com/@${user}/live`, {
-        headers: headers(env, { accept: 'text/html' }),
-      });
-      const html = await r.text();
+      let r, html;
+      for (let i = 0; i < 2; i++) {
+        if (i) await sleep(1500);
+        r = await fetch(`https://www.tiktok.com/@${user}/live`, { headers: headers(env, { accept: 'text/html' }) });
+        html = await r.text();
+        if (r.ok) break;
+      }
       const m = html.match(/"roomId":"(\d+)"/);
       if (m) {
         out.roomId = m[1];
@@ -104,6 +115,26 @@ export async function checkLive(user, env) {
       }
     } catch (e) {
       errs.push('room: ' + e.message);
+    }
+  }
+
+  // 4) Dự phòng cuối: hỏi phòng live đã biết từ lần trước còn sống không
+  if (!out.source && prevRoomId && prevRoomId !== '0') {
+    try {
+      const j = await getJSON(
+        `https://webcast.tiktok.com/webcast/room/check_alive/?aid=1988&room_ids=${prevRoomId}`,
+        env,
+      );
+      const a = Array.isArray(j?.data) ? j.data[0] : null;
+      if (a && typeof a.alive === 'boolean') {
+        out.live = a.alive;
+        out.roomId = prevRoomId;
+        out.source = 'check_alive';
+      } else {
+        errs.push('check_alive: không có dữ liệu');
+      }
+    } catch (e) {
+      errs.push('check_alive: ' + e.message);
     }
   }
 
