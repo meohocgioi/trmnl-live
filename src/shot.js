@@ -49,10 +49,19 @@ export async function screenshotTargets(env, targets) {
         await sleep(1500);
         // Ẩn popup/banner che video (cookie, đăng nhập, menu cố định) rồi tính khung chứa tất cả video
         const clip = await page.evaluate(() => {
-          const vids = [...document.querySelectorAll('video')].filter((v) => {
+          // Bỏ video nền bị làm mờ (TikTok chèn sau video dọc) — xét cả 3 lớp cha
+          const blurred = (v) => {
+            for (let e = v, k = 0; e && k < 4; e = e.parentElement, k++) {
+              const cs = getComputedStyle(e);
+              if (/blur/.test(cs.filter) || /blur/.test(cs.backdropFilter || '') || Number(cs.opacity) < 0.6) return true;
+            }
+            return false;
+          };
+          const all = [...document.querySelectorAll('video')].filter((v) => {
             const r = v.getBoundingClientRect();
             return v.videoWidth > 0 && r.width > 60 && r.height > 60;
           });
+          const vids = all.filter((v) => !blurred(v)).length ? all.filter((v) => !blurred(v)) : all;
           if (!vids.length) return null;
           const keep = new Set();
           for (const v of vids) for (let e = v; e; e = e.parentElement) keep.add(e);
