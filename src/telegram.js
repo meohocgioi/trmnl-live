@@ -99,6 +99,13 @@ const MAIN_KB = [
 ];
 const BACK_KB = [[{ text: '⬅️ Menu', callback_data: 'menu' }]];
 
+function budgetLine(cfg, st) {
+  const today = new Date().toISOString().slice(0, 10);
+  const b = st.budget && st.budget.day === today ? st.budget : {};
+  const used = b.cfSec != null ? b.cfSec : Math.round((b.ms || 0) / 1000);
+  return `🖥 Trình duyệt hôm nay: <b>${used}s</b> / 600s (reset 07:00)` + (b.everyMin ? ` · chụp tự động ~${b.everyMin} phút/lần` : '');
+}
+
 function budgetSec(st) {
   const today = new Date().toISOString().slice(0, 10);
   return st.budget && st.budget.day === today ? Math.round(st.budget.ms / 1000) : 0;
@@ -136,7 +143,7 @@ function statusText(cfg, st, names) {
   return (
     `<b>📺 TikTok Live → TRMNL</b>\n\n${blocks}\n\n` +
     `━━━━━━━━━━━━\n⏱ Kiểm tra mỗi <b>${cfg.intervalMin} phút</b> · ` +
-    `🖥 Quota trình duyệt hôm nay: <b>${budgetSec(st)}s</b> / ${cfg.browserDailySec}s`
+    budgetLine(cfg, st)
   );
 }
 

@@ -3,7 +3,7 @@ import { checkLive as ttCheck, UA } from './tiktok.js';
 import { checkLive as ytCheck } from './youtube.js';
 import { checkLive as fbCheck } from './facebook.js';
 import { idInfo } from './platforms.js';
-import { screenshotTargets } from './shot.js';
+import { screenshotTargets, browserUsedSec } from './shot.js';
 import { getConfig, getState, saveState, putImage, flagsOf } from './store.js';
 import { notifyEvents } from './telegram.js';
 import { imgSize, fmtTime } from './util.js';
@@ -102,8 +102,33 @@ export async function runCheck(env, opts = {}) {
   }
 
   // Ảnh khi live
-  const budgetMs = cfg.browserDailySec * 1000;
-  const canBrowser = !!env.BROWSER && cfg.shotMode === 'screen' && (forceShot || st.budget.ms < budgetMs);
+  // Chia đều 10 phút trình duyệt/ngày (gói Free) cho cả ngày thức của TRMNL, chừa lại 1 ít cho nút Chụp ngay
+  let canBrowser = false;
+  if (env.BROWSER && cfg.shotMode === 'screen' && live.length) {
+    const real = await browserUsedSec(env);
+    if (real != null) st.budget.cfSec = Math.round(real);
+    const usedSec = real != null ? real : st.budget.ms / 1000;
+    const avg = st.budget.avgSec || 18;
+    if (forceShot) canBrowser = usedSec < 597;
+    else {
+      const cap = cfg.browserDailySec;
+      const vn = (now / 60000 + 7 * 60) % 1440; // phút trong ngày giờ VN
+      const qFrom = cfg.quietFrom ?? 60, qTo = cfg.quietTo ?? 480; // TRMNL ngủ 01:00–08:00
+      const quiet = vn >= qFrom && vn < qTo;
+      const remMin = vn >= qTo ? 1440 - vn + qFrom : vn < qFrom ? qFrom - vn : 0;
+      const avail = cap - 60 - usedSec;
+      if (!quiet && avail >= avg) {
+        const every = Math.max(cfg.intervalMin, remMin / Math.max(1, avail / avg));
+        st.budget.everyMin = Math.round(every);
+        // Ai vừa lên live mà chưa có ảnh chụp thật của phiên này → chụp ngay, không chờ lượt
+        const fresh = live.some(({ id }) => {
+          const u = st.users[id] || {};
+          return !u.shotTriedAt || (u.liveSince && u.shotTriedAt < u.liveSince);
+        });
+        canBrowser = fresh || now - (st.budget.lastShotAt || 0) >= every * 60000 - 150000;
+      }
+    }
+  }
   const targets = [];
   for (const { id, info } of live) {
     const { plat, liveUrl } = idInfo(id);
@@ -122,10 +147,15 @@ export async function runCheck(env, opts = {}) {
     }
   }
   let shots = {};
+  for (const t of targets) if (st.users[t.id]) st.users[t.id].shotTriedAt = now;
   if (targets.length) {
     const r = await screenshotTargets(env, targets);
     st.budget.ms += r.ms;
     shots = r.results;
+    if (Object.values(shots).some((x) => x.png)) {
+      st.budget.lastShotAt = now;
+      st.budget.avgSec = Math.round(((st.budget.avgSec || 18) * 0.7 + (r.ms / 1000) * 0.3) * 10) / 10;
+    }
   }
 
   for (const { id, info } of live) {
@@ -146,7 +176,7 @@ export async function runCheck(env, opts = {}) {
     // không thay bằng ảnh bìa phòng live (ảnh bìa thường là hình streamer tự đặt, khác màn hình live)
     if (plat !== 'yt' && cfg.shotMode === 'screen' && u.shotKind === 'screen' && u.shotAt &&
         (!u.liveSince || u.shotAt >= u.liveSince)) {
-      u.shotError = (r?.error || 'không chụp được') + ` — giữ ảnh chụp lúc ${fmtTime(u.shotAt)}`;
+      u.shotError = r?.error ? `${r.error} — giữ ảnh chụp lúc ${fmtTime(u.shotAt)}` : null;
       continue;
     }
     // YouTube: thumbnail live (TikTok/Facebook: dự phòng khi không chụp được)
@@ -167,7 +197,7 @@ export async function runCheck(env, opts = {}) {
     }
     if (plat === 'yt') u.shotError = r?.error ? `chụp trình phát lỗi (${r.error}), dùng thumbnail` : ok ? null : 'không lấy được thumbnail live';
     else if (cfg.shotMode === 'cover') u.shotError = null;
-    else u.shotError = r?.error || (env.BROWSER ? (canBrowser ? 'không có link video' : 'đã hết quota trình duyệt hôm nay') : 'chưa bật Browser Rendering');
+    else u.shotError = r?.error || (env.BROWSER ? (canBrowser ? 'không có link video' : 'chưa tới lượt chụp / hết quota trình duyệt') : 'chưa bật Browser Rendering');
   }
 
   for (const k of Object.keys(st.users)) if (!cfg.users.includes(k)) delete st.users[k];

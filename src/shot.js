@@ -15,17 +15,28 @@ function parseCookies(str, domain) {
     });
 }
 
+// Thời gian trình duyệt Cloudflare đã dùng hôm nay (giây, theo ngày UTC = reset 07:00 giờ VN)
+export async function browserUsedSec(env) {
+  try {
+    const l = await puppeteer.limits(env.BROWSER);
+    return typeof l.usedBrowserTimeSeconds === 'number' ? l.usedBrowserTimeSeconds : null;
+  } catch {
+    return null;
+  }
+}
+
 // Mở trình duyệt; gói free chỉ cho mở trình duyệt mới cách nhau ~20s → chờ rồi thử lại thay vì bỏ cuộc
 async function openBrowser(env) {
   for (let k = 0; k < 3; k++) {
     try {
       const lim = await puppeteer.limits(env.BROWSER).catch(() => null);
+      if (lim && lim.usedBrowserTimeSeconds >= 597) throw new Error('hết 10 phút trình duyệt miễn phí của hôm nay (mở lại lúc 07:00)');
       if (lim && lim.allowedBrowserAcquisitions === 0) {
         await sleep(Math.min(25000, (lim.timeUntilNextAllowedBrowserAcquisition || 20000) + 800));
       }
       return await puppeteer.launch(env.BROWSER);
     } catch (e) {
-      if (k === 2 || !/429|rate limit/i.test(e.message)) throw e;
+      if (k === 2 || !/429|rate limit/i.test(e.message) || /hết 10 phút|time limit/i.test(e.message)) throw e;
       await sleep(21000);
     }
   }
