@@ -1,0 +1,23 @@
+name: Lab (thử nghiệm)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Deploy lab worker
+        run: npx wrangler deploy --config lab/wrangler.toml
+      - name: Test
+        run: |
+          sleep 8
+          curl -s --max-time 90 "https://trmnl-live-lab.meohocgioi.workers.dev/?u=quakhu.cuaanh&w=10000"
