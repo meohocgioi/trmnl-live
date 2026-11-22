@@ -39,6 +39,20 @@ export default {
 
 async function run(req, env) {
   const url0 = new URL(req.url);
+  if (url0.pathname === '/ytraw') {
+    const h0 = url0.searchParams.get('h');
+    const r = await fetch(`https://www.youtube.com/@${h0}/streams`, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', 'accept-language': 'en-US,en;q=0.9', cookie: 'SOCS=CAI; CONSENT=YES+1' } });
+    const t = await r.text();
+    const out = { len: t.length, counts: {}, snips: {} };
+    for (const k of ['watching', 'LIVE_NOW', '"LIVE"', 'isLive', 'lockupViewModel', 'videoRenderer', 'BADGE_STYLE', 'Streamed', 'live_now', 'LIVE']) {
+      out.counts[k] = t.split(k).length - 1;
+    }
+    for (const k of ['watching', 'LIVE_NOW', '"LIVE"']) {
+      const i = t.indexOf(k);
+      if (i >= 0) out.snips[k] = t.slice(Math.max(0, i - 900), i + 200);
+    }
+    return new Response(JSON.stringify(out, null, 1), { headers: { 'content-type': 'application/json; charset=utf-8' } });
+  }
   if (url0.pathname === '/yt') {
     const r = await ytCheck(url0.searchParams.get('h'), env);
     delete r.avatar;
