@@ -15,6 +15,43 @@ function parseCookies(str, domain) {
     });
 }
 
+// Mở trình duyệt; gói free chỉ cho mở trình duyệt mới cách nhau ~20s → chờ rồi thử lại thay vì bỏ cuộc
+async function openBrowser(env) {
+  for (let k = 0; k < 3; k++) {
+    try {
+      const lim = await puppeteer.limits(env.BROWSER).catch(() => null);
+      if (lim && lim.allowedBrowserAcquisitions === 0) {
+        await sleep(Math.min(25000, (lim.timeUntilNextAllowedBrowserAcquisition || 20000) + 800));
+      }
+      return await puppeteer.launch(env.BROWSER);
+    } catch (e) {
+      if (k === 2 || !/429|rate limit/i.test(e.message)) throw e;
+      await sleep(21000);
+    }
+  }
+}
+
+// Bấm nút "từ chối / đóng" của popup cookie (tìm cả trong shadow DOM)
+const DISMISS = () => {
+  const deep = (root, out = []) => {
+    for (const el of root.querySelectorAll('*')) { out.push(el); if (el.shadowRoot) deep(el.shadowRoot, out); }
+    return out;
+  };
+  for (const el of deep(document.body)) {
+    if (el.tagName !== 'BUTTON' && el.getAttribute?.('role') !== 'button') continue;
+    const t = (el.textContent || '').trim();
+    if (/^(decline optional cookies|decline|reject all|reject|từ chối.*|only allow essential.*)$/i.test(t)) { try { el.click(); } catch {} }
+  }
+  for (const h of document.querySelectorAll('tiktok-cookie-banner')) h.style.setProperty('display', 'none', 'important');
+};
+
+// Chặn sẵn popup cookie / đăng nhập (kể cả xuất hiện muộn, nằm trong shadow DOM)
+const PRELOAD = `(() => {
+  const css = 'tiktok-cookie-banner,[class*="cookie-banner" i],[class*="CookieBanner"],[id*="cookie-banner" i],#onetrust-banner-sdk,#onetrust-consent-sdk,[class*="DivLoginContainer"],[class*="login-modal" i]{display:none!important;visibility:hidden!important}';
+  const add = () => { const st = document.createElement('style'); st.textContent = css; (document.head || document.documentElement).appendChild(st); };
+  if (document.documentElement) add(); else document.addEventListener('DOMContentLoaded', add);
+})();`;
+
 /**
  * Chụp nhiều trang trong 1 lần mở trình duyệt (tiết kiệm quota)
  * targets: [{ id, url, cookie, domain }]
@@ -25,7 +62,7 @@ export async function screenshotTargets(env, targets) {
   if (!targets.length) return { results, ms: 0 };
   let browser;
   try {
-    browser = await puppeteer.launch(env.BROWSER);
+    browser = await openBrowser(env);
     for (const t of targets) {
       const page = await browser.newPage();
       try {
@@ -33,6 +70,7 @@ export async function screenshotTargets(env, targets) {
         await page.setViewport({ width: 1280, height: 900 });
         const cookies = parseCookies(t.cookie, t.domain);
         if (cookies.length) await page.setCookie(...cookies);
+        await page.evaluateOnNewDocument(PRELOAD).catch(() => {});
         await page.goto(t.url, { waitUntil: 'domcontentloaded', timeout: 25000 });
         const ok = await page
           .waitForFunction(
@@ -47,6 +85,8 @@ export async function screenshotTargets(env, targets) {
         }
         await page.keyboard.press('Escape').catch(() => {}); // đóng popup đăng nhập nếu có
         await sleep(1500);
+        await page.evaluate(DISMISS).catch(() => {});
+        await sleep(400);
         // Ẩn popup/banner che video (cookie, đăng nhập, menu cố định) rồi tính khung chứa tất cả video
         const clip = await page.evaluate(() => {
           // Bỏ video nền bị làm mờ (TikTok chèn sau video dọc) — xét cả 3 lớp cha
@@ -69,7 +109,12 @@ export async function screenshotTargets(env, targets) {
           document
             .querySelectorAll('tiktok-cookie-banner, [class*="cookie" i], [id*="cookie" i], [role="dialog"], [aria-modal="true"]')
             .forEach((el) => { if (!keep.has(el)) el.style.setProperty('display', 'none', 'important'); });
-          for (const el of document.querySelectorAll('body *')) {
+          const deep = (root, out = []) => {
+            for (const el of root.querySelectorAll('*')) { out.push(el); if (el.shadowRoot) deep(el.shadowRoot, out); }
+            return out;
+          };
+          const ALL = deep(document.body);
+          for (const el of ALL) {
             if (keep.has(el)) continue;
             const pos = getComputedStyle(el).position;
             if (pos === 'fixed' || pos === 'sticky') hide(el);
@@ -89,7 +134,7 @@ export async function screenshotTargets(env, targets) {
           const main = rects[0];
           let x1 = main.left, y1 = main.top, x2 = main.right, y2 = main.bottom;
           // Ẩn mọi lớp phủ nằm đè lên video (tên/nút Follow, thông báo đăng nhập, quà tặng…)
-          for (const el of document.querySelectorAll('body *')) {
+          for (const el of ALL) {
             if (keep.has(el) || el.tagName === 'VIDEO') continue;
             const pos = getComputedStyle(el).position;
             if (pos !== 'absolute' && pos !== 'fixed' && pos !== 'sticky') continue;
@@ -97,6 +142,7 @@ export async function screenshotTargets(env, targets) {
             if (r.right > x1 && r.left < x2 && r.bottom > y1 && r.top < y2) hide(el);
           }
           x1 = Math.max(0, x1); y1 = Math.max(0, y1);
+          window.__clipBox = [x1, y1, x2, y2];
           return { x: x1 + scrollX, y: y1 + scrollY, width: x2 - x1, height: y2 - y1 };
         });
         if (!clip || clip.width < 60 || clip.height < 60) {
@@ -104,6 +150,22 @@ export async function screenshotTargets(env, targets) {
           continue;
         }
         await sleep(300);
+        await page.evaluate(DISMISS).catch(() => {});
+        await page.evaluate(() => {
+          const b = window.__clipBox; if (!b) return;
+          const [x1, y1, x2, y2] = b;
+          const deep = (root, out = []) => {
+            for (const el of root.querySelectorAll('*')) { out.push(el); if (el.shadowRoot) deep(el.shadowRoot, out); }
+            return out;
+          };
+          for (const el of deep(document.body)) {
+            if (el.tagName === 'VIDEO' || el.querySelector?.('video')) continue;
+            const pos = getComputedStyle(el).position;
+            if (pos !== 'fixed' && pos !== 'sticky' && pos !== 'absolute') continue;
+            const r = el.getBoundingClientRect();
+            if (r.width > 0 && r.right > x1 && r.left < x2 && r.bottom > y1 && r.top < y2) el.style.setProperty('visibility', 'hidden', 'important');
+          }
+        }).catch(() => {});
         let png = await page.screenshot({ type: 'png', clip });
         // Cắt bỏ dải đen trên/dưới/2 bên có sẵn trong luồng video
         try {

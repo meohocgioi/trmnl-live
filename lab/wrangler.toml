@@ -7,3 +7,7 @@ workers_dev = true
 
 [browser]
 binding = "BROWSER"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "6e4cd40e77f743c79ee3367a81cdf999"

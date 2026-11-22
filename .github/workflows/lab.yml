@@ -20,15 +20,9 @@ jobs:
       - name: Test
         run: |
           sleep 8
-          V=$(curl -s "https://trmnl-live-lab.meohocgioi.workers.dev/yt?h=tructiepgame-official" | grep -oE '"videoId": "[^"]+"' | cut -d'"' -f4)
-          echo "videoId=$V"
-          for i in 1 2 3; do
-            curl -s -D h.txt -o yt.png --max-time 90 "https://trmnl-live-lab.meohocgioi.workers.dev/shot?url=https%3A%2F%2Fwww.youtube.com%2Fembed%2F$V%3Fautoplay%3D1%26mute%3D1%26controls%3D0%26rel%3D0"
-            file yt.png; grep -i "content-type\|x-ms" h.txt
-            grep -q "429" yt.png 2>/dev/null && { cat yt.png; sleep 25; continue; }
-            break
-          done
-          head -c 300 yt.png | grep -a error || true
+          U=$(python3 -c "import urllib.parse;print(urllib.parse.quote('https://www.tiktok.com/@quakhu.cuaanh/live',safe=''))")
+          curl -s -D h.txt -o yt.png --max-time 120 "https://trmnl-live-lab.meohocgioi.workers.dev/shot?save=1&url=$U"
+          file yt.png; grep -i "content-type\|x-ms" h.txt; head -c 300 yt.png | grep -a error || true
       - uses: actions/upload-artifact@v4
         with:
           name: shot

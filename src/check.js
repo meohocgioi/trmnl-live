@@ -6,7 +6,7 @@ import { idInfo } from './platforms.js';
 import { screenshotTargets } from './shot.js';
 import { getConfig, getState, saveState, putImage, flagsOf } from './store.js';
 import { notifyEvents } from './telegram.js';
-import { imgSize } from './util.js';
+import { imgSize, fmtTime } from './util.js';
 
 export async function saveRemoteImage(env, key, url, referer) {
   try {
@@ -140,6 +140,13 @@ export async function runCheck(env, opts = {}) {
       u.shotAt = now;
       u.shotKind = 'screen';
       u.shotError = null;
+      continue;
+    }
+    // Không chụp được (trình duyệt bận / lỗi) mà vẫn còn ảnh chụp THẬT của phiên live này → giữ ảnh đó,
+    // không thay bằng ảnh bìa phòng live (ảnh bìa thường là hình streamer tự đặt, khác màn hình live)
+    if (plat !== 'yt' && cfg.shotMode === 'screen' && u.shotKind === 'screen' && u.shotAt &&
+        (!u.liveSince || u.shotAt >= u.liveSince)) {
+      u.shotError = (r?.error || 'không chụp được') + ` — giữ ảnh chụp lúc ${fmtTime(u.shotAt)}`;
       continue;
     }
     // YouTube: thumbnail live (TikTok/Facebook: dự phòng khi không chụp được)

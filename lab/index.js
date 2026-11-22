@@ -44,6 +44,7 @@ async function run(req, env) {
     const target = url0.searchParams.get('url');
     const r = await screenshotTargets(env, [{ id: 'x', url: target, cookie: 'SOCS=CAI; CONSENT=YES+1', domain: '.youtube.com' }]);
     const x = r.results.x || {};
+    if (x.png && env.KV && url0.searchParams.get('save')) await env.KV.put('lab:shot', x.png, { expirationTtl: 86400 });
     if (x.png) return new Response(x.png, { headers: { 'content-type': 'image/png', 'x-ms': String(r.ms) } });
     return new Response(JSON.stringify({ error: x.error, ms: r.ms }), { headers: { 'content-type': 'application/json' } });
   }
