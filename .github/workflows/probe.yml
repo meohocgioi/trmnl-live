@@ -7,7 +7,11 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Lab worker test (TikTok chat API)
+      - name: Lab test with retries
         run: |
-          sleep 5
-          curl -s "https://trmnl-live-lab.meohocgioi.workers.dev/?u=quakhu.cuaanh"
+          for i in 1 2 3 4 5; do
+            OUT=$(curl -s --max-time 90 "https://trmnl-live-lab.meohocgioi.workers.dev/?u=quakhu.cuaanh&w=10000")
+            echo "$OUT" | grep -q '429' || break
+            echo "try $i: 429, waiting"; sleep 30
+          done
+          echo "$OUT"
