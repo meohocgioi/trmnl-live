@@ -109,19 +109,21 @@ export async function screenshotTargets(env, targets) {
             const g = c.getContext('2d');
             g.drawImage(img, 0, 0);
             const d = g.getImageData(0, 0, W, H).data;
-            const dark = (n, step, at) => {
-              let s = 0, k = 0;
-              for (let i = 0; i < n; i += 4) { const p = at(i) * 4; s += d[p] + d[p + 1] + d[p + 2]; k++; }
-              return s / (3 * k) < 20;
+            // Hàng/cột "trơn" = gần như cùng một màu (dải đen, nền trắng, viền) -> cắt bỏ
+            const flat = (n, at) => {
+              const v = [];
+              for (let i = 0; i < n; i += 3) { const p = at(i) * 4; v.push((d[p] + d[p + 1] + d[p + 2]) / 3); }
+              const s = [...v].sort((a, b) => a - b), med = s[s.length >> 1];
+              return v.filter((x) => Math.abs(x - med) < 28).length >= v.length * 0.94;
             };
-            const row = (y) => dark(W, 4, (x) => y * W + x);
-            const col = (x) => dark(H, 4, (y) => y * W + x);
+            const row = (y) => flat(W, (x) => y * W + x);
+            const col = (x) => flat(H, (y) => y * W + x);
             let t = 0, b = H - 1, l = 0, r = W - 1;
             while (t < b && row(t)) t++;
             while (b > t && row(b)) b--;
             while (l < r && col(l)) l++;
             while (r > l && col(r)) r--;
-            if (b - t < H * 0.3 || r - l < W * 0.3) return null;
+            if (b - t < H * 0.25 || r - l < W * 0.25) return null;
             if (t < 3 && b > H - 4 && l < 3 && r > W - 4) return null;
             const o = document.createElement('canvas');
             o.width = r - l + 1; o.height = b - t + 1;

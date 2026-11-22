@@ -6,14 +6,16 @@ import { idInfo } from './platforms.js';
 import { screenshotTargets } from './shot.js';
 import { getConfig, getState, saveState, putImage } from './store.js';
 import { notifyEvents } from './telegram.js';
+import { imgSize } from './util.js';
 
 export async function saveRemoteImage(env, key, url, referer) {
   try {
     const r = await fetch(url, { headers: { 'user-agent': UA, ...(referer ? { referer } : {}) } });
     const type = r.headers.get('content-type') || '';
     if (!r.ok || !type.startsWith('image/')) return false;
-    await putImage(env, key, await r.arrayBuffer(), type.split(';')[0]);
-    return true;
+    const buf = await r.arrayBuffer();
+    await putImage(env, key, buf, type.split(';')[0]);
+    return imgSize(buf) || true;
   } catch {
     return false;
   }
@@ -123,6 +125,9 @@ export async function runCheck(env, opts = {}) {
     const r = shots[id];
     if (r && r.png) {
       await putImage(env, 'shot:' + id, r.png, 'image/png');
+      const sz = imgSize(r.png);
+      u.shotW = sz?.w || null;
+      u.shotH = sz?.h || null;
       u.shotAt = now;
       u.shotKind = 'screen';
       u.shotError = null;
@@ -139,6 +144,8 @@ export async function runCheck(env, opts = {}) {
       }
     }
     if (ok) {
+      u.shotW = ok.w || null;
+      u.shotH = ok.h || null;
       u.shotAt = now;
       u.shotKind = plat === 'yt' ? 'thumb' : 'cover';
     }

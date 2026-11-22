@@ -32,6 +32,8 @@ async function trmnlPayload(env, origin) {
       viewers: s.viewers ?? '',
       image: s.live && s.shotAt ? `${origin}/img/shot/${id}?v=${s.shotAt}` : null,
       shot_kind: s.shotKind || null,
+      // tỉ lệ rộng/cao của ảnh live (để TRMNL co ô vừa khít ảnh)
+      ar: s.shotW && s.shotH ? Math.round((s.shotW / s.shotH) * 1000) / 1000 : I.plat === 'yt' ? 1.778 : 0.5625,
       avatar: s.avatarAt ? `${origin}/img/avatar/${id}?v=${s.avatarAt}` : null,
       checked: fmtTime(s.checkedAt) || '--:--',
       shot: fmtTime(s.shotAt) || '',

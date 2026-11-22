@@ -3,10 +3,10 @@
 {% assign n = users.size %}{% if n > 4 %}{% assign n = 4 %}{% endif %}
 <div class="layout" style="padding:0;">
   <div class="lc">
-    <div class="lc-main {% if nl > 0 %}l{{ nl }}{% else %}n{{ n }}{% endif %}">
+    <div class="lc-main {% if nl > 0 %}mix l{{ nl }}{% else %}n{{ n }}{% endif %}">
       {% if nl > 0 %}
         {% for u in lives limit:nl %}
-        <div class="lc-card lv">
+        <div class="lc-card lv" style="--ar:{{ u.ar | default: 0.5625 }}">
           <div class="lv-head">
             <span class="lv-name">{{ u.user }}</span>
             <span class="lv-tag">LIVE</span>
@@ -15,6 +15,22 @@
           <div class="lv-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="lv-ph">LIVE</div>{% endif %}</div>
         </div>
         {% endfor %}
+        {% assign offs = users | where: "live", false %}
+        {% assign no = offs.size %}{% assign room = 4 | minus: nl %}{% if no > room %}{% assign no = room %}{% endif %}
+        {% if no > 0 %}
+        <div class="off-col c{{ no }}">
+          {% for u in offs limit:no %}
+          <div class="off-cell">
+            {% if u.avatar %}<img class="image-dither off-ava" src="{{ u.avatar }}">{% endif %}
+            <div class="off-txt">
+              <div class="off-name">{{ u.user }}</div>
+              <div class="off-state">{% if u.unknown %}???{% else %}OFFLINE{% endif %}</div>
+              <div class="off-sub">{{ u.platform }} · {{ u.checked }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
       {% else %}
         {% for u in users limit:4 %}
         <div class="lc-card">
