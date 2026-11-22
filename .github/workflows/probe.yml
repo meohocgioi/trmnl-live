@@ -7,10 +7,7 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Debug live check from Cloudflare
+      - name: Lab worker test (TikTok chat API)
         run: |
-          W=https://trmnl-live.meohocgioi.workers.dev
-          for id in yt-nasa yt-lofigirl yt-mrbeast yt-UCX6OQ3DkcsbYNE6H8uQQuVA tt-embechiiu_ fb-nasa; do
-            echo "=== $id"; curl -s "$W/debug/$id" | grep -vE '"(avatar|cover)"'; echo
-          done
-          echo "=== /trmnl"; curl -s "$W/trmnl"
+          sleep 5
+          curl -s "https://trmnl-live-lab.meohocgioi.workers.dev/?u=quakhu.cuaanh"
