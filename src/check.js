@@ -112,7 +112,7 @@ export async function runCheck(env, opts = {}) {
       // Chụp khung hình đang phát từ trình phát YouTube (không phải ảnh bìa)
       targets.push({
         id,
-        url: `https://www.youtube.com/embed/${info.videoId}?autoplay=1&mute=1&controls=0&rel=0`,
+        url: `https://www.youtube.com/watch?v=${info.videoId}`,
         cookie: 'SOCS=CAI; CONSENT=YES+1',
         domain: '.youtube.com',
       });
