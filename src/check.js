@@ -108,6 +108,14 @@ export async function runCheck(env, opts = {}) {
     const { plat, liveUrl } = idInfo(id);
     if (plat === 'tt' && canBrowser) {
       targets.push({ id, url: liveUrl, cookie: env.TIKTOK_COOKIE, domain: '.tiktok.com' });
+    } else if (plat === 'yt' && canBrowser && info.videoId) {
+      // Chụp khung hình đang phát từ trình phát YouTube (không phải ảnh bìa)
+      targets.push({
+        id,
+        url: `https://www.youtube.com/embed/${info.videoId}?autoplay=1&mute=1&controls=0&rel=0`,
+        cookie: 'SOCS=CAI; CONSENT=YES+1',
+        domain: '.youtube.com',
+      });
     } else if (plat === 'fb' && canBrowser && info.videoUrl) {
       targets.push({ id, url: info.videoUrl, cookie: env.FACEBOOK_COOKIE, domain: '.facebook.com' });
     }
@@ -149,7 +157,7 @@ export async function runCheck(env, opts = {}) {
       u.shotAt = now;
       u.shotKind = plat === 'yt' ? 'thumb' : 'cover';
     }
-    if (plat === 'yt') u.shotError = ok ? null : 'không lấy được thumbnail live';
+    if (plat === 'yt') u.shotError = r?.error ? `chụp trình phát lỗi (${r.error}), dùng thumbnail` : ok ? null : 'không lấy được thumbnail live';
     else if (cfg.shotMode === 'cover') u.shotError = null;
     else u.shotError = r?.error || (env.BROWSER ? (canBrowser ? 'không có link video' : 'đã hết quota trình duyệt hôm nay') : 'chưa bật Browser Rendering');
   }

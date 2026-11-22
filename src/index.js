@@ -43,7 +43,15 @@ async function trmnlPayload(env, origin) {
   });
   // Bố cục collage khi có người live (tính theo tỉ lệ ảnh)
   const live = users.map((u, i) => ({ i, ar: u.ar, live: u.live })).filter((u) => u.live);
-  const layout = live.length ? computeLayout(live, users.length - live.length) : null;
+  let layout = null;
+  if (live.length) {
+    const sig = 'layout:' + live.map((l) => `${l.i}:${Math.round(l.ar * 50) / 50}`).join(',') + '|' + (users.length - live.length);
+    layout = await env.KV.get(sig, 'json');
+    if (!layout) {
+      layout = computeLayout(live.map((l) => ({ i: l.i, ar: Math.round(l.ar * 50) / 50 })), users.length - live.length);
+      await env.KV.put(sig, JSON.stringify(layout), { expirationTtl: 7 * 86400 });
+    }
+  }
   return {
     updated: fmtDateTime(Date.now()),
     layout,

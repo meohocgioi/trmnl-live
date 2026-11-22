@@ -1,6 +1,7 @@
 // Thử: mở trang live TikTok, nghe dữ liệu chat (im/fetch + WebSocket) mà trang nhận về
 import puppeteer from '@cloudflare/puppeteer';
 import { checkLive as ytCheck } from '../src/youtube.js';
+import { screenshotTargets } from '../src/shot.js';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 function strs(b) {
@@ -39,6 +40,13 @@ export default {
 
 async function run(req, env) {
   const url0 = new URL(req.url);
+  if (url0.pathname === '/shot') {
+    const target = url0.searchParams.get('url');
+    const r = await screenshotTargets(env, [{ id: 'x', url: target, cookie: 'SOCS=CAI; CONSENT=YES+1', domain: '.youtube.com' }]);
+    const x = r.results.x || {};
+    if (x.png) return new Response(x.png, { headers: { 'content-type': 'image/png', 'x-ms': String(r.ms) } });
+    return new Response(JSON.stringify({ error: x.error, ms: r.ms }), { headers: { 'content-type': 'application/json' } });
+  }
   if (url0.pathname === '/ytraw') {
     const h0 = url0.searchParams.get('h');
     const r = await fetch(`https://www.youtube.com/@${h0}/streams`, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', 'accept-language': 'en-US,en;q=0.9', cookie: 'SOCS=CAI; CONSENT=YES+1' } });
