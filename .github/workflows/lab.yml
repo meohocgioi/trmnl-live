@@ -20,6 +20,7 @@ jobs:
       - name: Test
         run: |
           sleep 8
+          curl -s "https://trmnl-live-lab.meohocgioi.workers.dev/limits"
           U=$(python3 -c "import urllib.parse;print(urllib.parse.quote('https://www.tiktok.com/@quakhu.cuaanh/live',safe=''))")
           curl -s -D h.txt -o yt.png --max-time 120 "https://trmnl-live-lab.meohocgioi.workers.dev/shot?save=1&url=$U"
           file yt.png; grep -i "content-type\|x-ms" h.txt; head -c 300 yt.png | grep -a error || true

@@ -40,6 +40,14 @@ export default {
 
 async function run(req, env) {
   const url0 = new URL(req.url);
+  if (url0.pathname === '/limits') {
+    const out = {};
+    for (const k of ['limits', 'sessions', 'history']) {
+      try { out[k] = await puppeteer[k](env.BROWSER); } catch (e) { out[k] = 'ERR ' + e.message; }
+    }
+    if (Array.isArray(out.history)) out.history = out.history.slice(0, 25);
+    return new Response(JSON.stringify(out, null, 1), { headers: { 'content-type': 'application/json' } });
+  }
   if (url0.pathname === '/shot') {
     const target = url0.searchParams.get('url');
     const r = await screenshotTargets(env, [{ id: 'x', url: target, cookie: 'SOCS=CAI; CONSENT=YES+1', domain: '.youtube.com' }]);
