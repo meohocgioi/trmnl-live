@@ -20,31 +20,30 @@
   .n1 .cp-state{font-size:30px}.n1 .cp-name{font-size:15px}.n2 .cp-state{font-size:22px}.n2 .cp-name{font-size:13px}.n3 .cp-state,.n4 .cp-state{font-size:16px}.n3 .cp-name,.n4 .cp-name{font-size:11px}.n3 .cp-sub,.n4 .cp-sub{font-size:9px}
   .cp-sb i{font-size:9px;padding:0 3px}.cp-t{display:none}.cp-sb{height:16px}
 </style>
-{% assign lives = users | where: "live", true %}
-{% assign nl = lives.size %}{% if nl > 4 %}{% assign nl = 4 %}{% endif %}
-{% assign n = users.size %}{% if n > 4 %}{% assign n = 4 %}{% endif %}
+{% assign nl = 0 %}{% assign n = 0 %}
+{% for u in users limit:4 %}{% unless u.screen == false %}{% assign n = n | plus: 1 %}{% if u.live %}{% assign nl = nl | plus: 1 %}{% endif %}{% endunless %}{% endfor %}
 <div class="layout" style="padding:0;">
   <div class="cp">
     <div class="cp-main {% if nl > 0 %}live l{{ nl }}{% else %}off n{{ n }}{% endif %}">
       {% if nl > 0 %}
-        {% for u in lives limit:nl %}
+        {% for u in users limit:4 %}{% if u.live %}{% unless u.screen == false %}
         <div class="cp-card">
           <div class="cp-head"><span class="cp-hn">{{ u.user }}</span><span class="cp-tag">LIVE</span>{% if u.viewers != "" %}<span class="cp-eye">{{ u.viewers }}<svg viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M12 5C6.5 5 2.7 8.6 1 12c1.7 3.4 5.5 7 11 7s9.3-3.6 11-7c-1.7-3.4-5.5-7-11-7zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg></span>{% endif %}</div>
           <div class="cp-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="cp-state">LIVE</div>{% endif %}</div>
         </div>
-        {% endfor %}
+        {% endunless %}{% endif %}{% endfor %}
       {% else %}
-        {% for u in users limit:4 %}
+        {% for u in users limit:4 %}{% unless u.screen == false %}
         <div class="cp-card">
           <div class="cp-state">{% if u.unknown %}???{% else %}OFFLINE{% endif %}</div>
           <div class="cp-name">{{ u.user }}</div>
           <div class="cp-sub">{{ u.platform }} · {{ u.checked }}</div>
         </div>
-        {% endfor %}
+        {% endunless %}{% endfor %}
       {% endif %}
     </div>
     <div class="cp-sb">
-      {% for u in users limit:4 %}<i class="{% if u.live %}on{% endif %}">{% if u.live %}●{% elsif u.unknown %}?{% else %}○{% endif %} {{ u.user }}</i>{% endfor %}
+      {% for u in users limit:4 %}{% unless u.status == false %}<i class="{% if u.live %}on{% endif %}">{% if u.live %}●{% elsif u.unknown %}?{% else %}○{% endif %} {{ u.user }}</i>{% endunless %}{% endfor %}
       <span class="cp-t">{{ updated }}</span>
     </div>
   </div>

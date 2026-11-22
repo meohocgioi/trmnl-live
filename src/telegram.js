@@ -1,6 +1,6 @@
 // Bot Telegram điều khiển plugin (chỉ chủ bot dùng được)
 import { runCheck } from './check.js';
-import { getConfig, saveConfig, getState, getImage, MAX_USERS } from './store.js';
+import { getConfig, saveConfig, getState, getImage, MAX_USERS, flagsOf } from './store.js';
 import { parseEntry, idInfo, splitId } from './platforms.js';
 import { fmtTime, fmtDur, esc } from './util.js';
 import { trmnlPreview } from './trmnl.js';
@@ -165,26 +165,34 @@ function listView(cfg, st) {
   const rows = cfg.users.map((id, i) => {
     const I = idInfo(id);
     const u = st?.users?.[id] || {};
+    const f = flagsOf(cfg, id);
     const dot = u.unknown && Date.now() - (u.lastOkAt || 0) > 30 * 60000 ? '❓' : u.live ? '🔴' : '⚫';
-    return `${i + 1}. ${dot} ${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a> · ${I.P.name}`;
+    const tags = [f.screen ? '🖼 Screen' : null, f.status ? '📊 Status' : null].filter(Boolean).join(' · ') || '<i>ẩn khỏi TRMNL</i>';
+    return `${i + 1}. ${dot} ${I.P.icon} <a href="${I.liveUrl}">${esc(I.display)}</a>\n     ${tags}`;
   });
   const text =
     `<b>👥 Đang theo dõi (${cfg.users.length}/${MAX_USERS})</b>\n\n` +
     (rows.join('\n') || '<i>Trống</i>') +
-    `\n\n🗑 Bấm <b>Xoá</b> cạnh tên để bỏ theo dõi.\n` +
+    `\n\n<b>🖼 Screen</b>: có ô hình trên TRMNL (live → ảnh màn hình, offline → ô OFFLINE)\n` +
+    `<b>📊 Status</b>: có tên trên thanh trạng thái dưới cùng\n` +
+    `Bấm ✅/⬜ để bật/tắt · 🗑 để bỏ theo dõi.\n` +
     (cfg.users.length < MAX_USERS
-      ? `➕ Thêm: <code>/add link</code> (TikTok / YouTube / Facebook) hoặc <code>/add yt tên</code> · <code>/add fb tên</code> · <code>/add tt tên</code>`
+      ? `➕ Thêm: <code>/add link</code> (TikTok / YouTube / Facebook)`
       : `<i>Đã đủ ${MAX_USERS} người — xoá bớt để thêm người mới.</i>`);
-  const kb = [
-    ...cfg.users.map((id) => {
-      const I = idInfo(id);
-      return [
-        { text: `${I.P.icon} ${I.display}`, url: I.liveUrl },
-        { text: '🗑 Xoá', callback_data: 'rmask:' + id },
-      ];
-    }),
-    ...BACK_KB,
-  ];
+  const kb = [];
+  for (const id of cfg.users) {
+    const I = idInfo(id);
+    const f = flagsOf(cfg, id);
+    kb.push([
+      { text: `${I.P.icon} ${I.display}`, url: I.liveUrl },
+      { text: '🗑', callback_data: 'rmask:' + id },
+    ]);
+    kb.push([
+      { text: `${f.screen ? '✅' : '⬜'} Screen`, callback_data: 'fs:' + id },
+      { text: `${f.status ? '✅' : '⬜'} Status`, callback_data: 'ft:' + id },
+    ]);
+  }
+  kb.push(...BACK_KB);
   return { text, kb };
 }
 
@@ -366,6 +374,18 @@ async function processUpdate(env, upd, origin, dedupKey) {
       return doPreview(env, chatId, false);
     }
     if (data === 'list') { const v = listView(cfg, await getState(env)); return editOrSend(env, chatId, msgId, v.text, v.kb); }
+    if (data.startsWith('fs:') || data.startsWith('ft:')) {
+      const id = data.slice(3);
+      if (cfg.users.includes(id)) {
+        const f = flagsOf(cfg, id);
+        if (data.startsWith('fs:')) f.screen = !f.screen;
+        else f.status = !f.status;
+        cfg.flags = { ...(cfg.flags || {}), [id]: f };
+        await saveConfig(env, cfg);
+      }
+      const v = listView(cfg, await getState(env));
+      return editOrSend(env, chatId, msgId, v.text, v.kb);
+    }
     if (data.startsWith('rmask:')) {
       const id = data.slice(6);
       if (!cfg.users.includes(id)) { const v = listView(cfg, await getState(env)); return editOrSend(env, chatId, msgId, v.text, v.kb); }
@@ -379,6 +399,7 @@ async function processUpdate(env, upd, origin, dedupKey) {
     else if (data.startsWith('rm:')) {
       const id = data.slice(3);
       cfg.users = cfg.users.filter((u) => u !== id);
+      if (cfg.flags) delete cfg.flags[id];
       await saveConfig(env, cfg);
       await tg(env, 'answerCallbackQuery', { callback_query_id: cq.id, text: `Đã xoá ${idInfo(id).display}` }).catch(() => {});
       const v = listView(cfg, await getState(env));

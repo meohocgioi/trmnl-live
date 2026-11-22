@@ -10,7 +10,13 @@ export const DEFAULT_CONFIG = {
   notify: true,           // báo Telegram khi ai đó bắt đầu / kết thúc live
   browserDailySec: 540,   // quota trình duyệt tự đặt mỗi ngày (gói Free = 600s)
   ownerId: null,
+  flags: {},              // { id: { screen: bool, status: bool } }
 };
+
+// Cờ hiển thị của từng người (mặc định bật cả Screen và Status)
+export function flagsOf(cfg, id) {
+  return { screen: true, status: true, ...((cfg.flags || {})[id] || {}) };
+}
 
 export async function getConfig(env) {
   const c = await env.KV.get('config', 'json');

@@ -1,9 +1,12 @@
-{% assign lives = users | where: "live", true %}
-{% assign nl = lives.size %}{% if nl > 4 %}{% assign nl = 4 %}{% endif %}
-{% assign n = users.size %}{% if n > 4 %}{% assign n = 4 %}{% endif %}
+{% comment %} Đếm: nl = người live có bật Screen; n = người bật Screen; sc = người bật Status {% endcomment %}
+{% assign nl = 0 %}{% assign n = 0 %}{% assign sc = 0 %}
+{% for u in users limit:4 %}
+  {% unless u.screen == false %}{% assign n = n | plus: 1 %}{% if u.live %}{% assign nl = nl | plus: 1 %}{% endif %}{% endunless %}
+  {% unless u.status == false %}{% assign sc = sc | plus: 1 %}{% endunless %}
+{% endfor %}
 <div class="layout" style="padding:0;">
   <div class="lc">
-    {% if layout %}
+    {% if layout and nl > 0 %}
     <div class="cg">
       {% for c in layout.cells %}
       {% assign u = users[c.i] %}
@@ -20,7 +23,7 @@
       {% endfor %}
       {% if layout.off %}
       <div class="slot offb ob-{{ layout.off.dir }}" style="left:{{ layout.off.x }}%;top:{{ layout.off.y }}%;width:{{ layout.off.w }}%;height:{{ layout.off.h }}%;">
-        {% for u in users limit:4 %}{% unless u.live %}
+        {% for u in users limit:4 %}{% unless u.live or u.screen == false %}
         <div class="off-cell">
           {% if u.avatar %}<img class="image-dither off-ava" src="{{ u.avatar }}">{% endif %}
           <div class="off-txt">
@@ -33,60 +36,39 @@
       </div>
       {% endif %}
     </div>
+    {% elsif n > 0 %}
+    <div class="lc-main n{{ n }}">
+      {% for u in users limit:4 %}{% unless u.screen == false %}
+      <div class="lc-card">
+        {% if u.avatar %}<img class="image-dither lc-ava" src="{{ u.avatar }}">{% endif %}
+        <div class="lc-state">{% if u.live %}LIVE{% elsif u.unknown %}???{% else %}OFFLINE{% endif %}</div>
+        <div class="lc-name">{{ u.user }}</div>
+        <div class="lc-sub">{{ u.platform }}{% if u.nickname != u.user %} · {{ u.nickname }}{% endif %}</div>
+        <div class="lc-sub">Kiểm tra {{ u.checked }}</div>
+      </div>
+      {% endunless %}{% endfor %}
+    </div>
     {% else %}
-    <div class="lc-main {% if nl > 0 %}mix l{{ nl }}{% else %}n{{ n }}{% endif %}">
-      {% if nl > 0 %}
-        {% assign offs = users | where: "live", false %}
-        {% assign no = offs.size %}{% assign room = 4 | minus: nl %}{% if no > room %}{% assign no = room %}{% endif %}
-        <div class="live-area{% if no == 0 %} full{% endif %}">
-        {% for u in lives limit:nl %}
-        <div class="lc-card lv">
-          <div class="lv-head">
-            <span class="lv-name">{{ u.user }}</span>
-            <span class="lv-tag">LIVE</span>
-            {% if u.viewers != "" %}<span class="lv-eye">{{ u.viewers }}<svg viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M12 5C6.5 5 2.7 8.6 1 12c1.7 3.4 5.5 7 11 7s9.3-3.6 11-7c-1.7-3.4-5.5-7-11-7zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg></span>{% endif %}
-          </div>
-          <div class="lv-img">{% if u.image %}<img class="image-dither" src="{{ u.image }}">{% else %}<div class="lv-ph">LIVE</div>{% endif %}</div>
-        </div>
-        {% endfor %}
-        </div>
-        {% if no > 0 %}
-        <div class="off-col c{{ no }}">
-          {% for u in offs limit:no %}
-          <div class="off-cell">
-            {% if u.avatar %}<img class="image-dither off-ava" src="{{ u.avatar }}">{% endif %}
-            <div class="off-txt">
-              <div class="off-name">{{ u.user }}</div>
-              <div class="off-state">{% if u.unknown %}???{% else %}OFFLINE{% endif %}</div>
-              <div class="off-sub">{{ u.platform }} · {{ u.checked }}</div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      {% else %}
-        {% for u in users limit:4 %}
-        <div class="lc-card">
-          {% if u.avatar %}<img class="image-dither lc-ava" src="{{ u.avatar }}">{% endif %}
-          <div class="lc-state">{% if u.unknown %}???{% else %}OFFLINE{% endif %}</div>
-          <div class="lc-name">{{ u.user }}</div>
-          <div class="lc-sub">{{ u.platform }}{% if u.nickname != u.user %} · {{ u.nickname }}{% endif %}</div>
-          <div class="lc-sub">Kiểm tra {{ u.checked }}</div>
-        </div>
-        {% endfor %}
-        {% if n == 0 %}<div style="margin:auto;font-size:28px;">Chưa theo dõi ai — dùng /add trên Telegram</div>{% endif %}
-      {% endif %}
+    <div class="sbd">
+      {% for u in users limit:4 %}{% unless u.status == false %}
+      <div class="sbd-row{% if u.live %} on{% endif %}">
+        {% if u.avatar %}<img class="image-dither sbd-ava" src="{{ u.avatar }}">{% endif %}
+        <div class="sbd-txt"><div class="sbd-name">{{ u.user }}</div><div class="sbd-sub">{{ u.platform }}{% if u.live and u.viewers != "" %} · {{ u.viewers }} xem{% endif %} · {{ u.checked }}</div></div>
+        <div class="sbd-state">{% if u.live %}● LIVE{% elsif u.unknown %}???{% else %}OFFLINE{% endif %}</div>
+      </div>
+      {% endunless %}{% endfor %}
+      {% if sc == 0 %}<div style="margin:auto;font-size:24px;">Bật Screen hoặc Status trong Danh sách trên Telegram</div>{% endif %}
     </div>
     {% endif %}
-    {% if nl == 0 %}
+    {% if n > 0 and sc > 0 %}
     <div class="sb">
-      {% for u in users limit:4 %}
+      {% for u in users limit:4 %}{% unless u.status == false %}
       <div class="sb-i{% if u.live %} on{% endif %}">
         <span>{% if u.live %}●{% elsif u.unknown %}?{% else %}○{% endif %}</span>
         <span class="sb-n">{{ u.user }}</span>
-        <span class="sb-s">{% if u.live %}LIVE{% elsif u.unknown %}??{% else %}OFF{% endif %}</span>
+        <span class="sb-s">{% if u.live %}LIVE{% if u.viewers != "" %} {{ u.viewers }}{% endif %}{% elsif u.unknown %}??{% else %}OFF{% endif %}</span>
       </div>
-      {% endfor %}
+      {% endunless %}{% endfor %}
       <div class="sb-t">{{ updated }}</div>
     </div>
     {% endif %}

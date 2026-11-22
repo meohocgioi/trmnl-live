@@ -2,7 +2,9 @@
 // Thử mọi cách chia màn hình (cạnh nhau / chồng nhau, lồng nhau), kích thước chia theo tỉ lệ ảnh.
 // Tiêu chí CÂN BẰNG: tổng log(diện tích hình) — để không ai bị bé tí; ô offline cũng nằm trong collage.
 const W = 780; // vùng nội dung xấp xỉ (px) của TRMNL 800x480
-const H = 452;
+const H_FULL = 452;
+const STATUS_H = 42; // chiều cao thanh trạng thái + khoảng cách
+let H = H_FULL;
 const GAP = 8;
 const HEAD = 28; // thanh tiêu đề mỗi ô live
 
@@ -76,8 +78,9 @@ const pct = (v, total) => Math.round((v / total) * 10000) / 100;
  * offCount: số người offline cần hiện
  * Trả: { cells:[{i,x,y,w,h,size}], off:{x,y,w,h,dir} | null }  (đơn vị %)
  */
-export function computeLayout(live, offCount) {
+export function computeLayout(live, offCount, hasStatus = false) {
   if (!live.length) return null;
+  H = hasStatus ? H_FULL - STATUS_H : H_FULL;
   const items = live.map((l) => ({ ...l }));
   if (offCount > 0) {
     // khối offline: k ô nhỏ (mỗi ô ~ 190x70)

@@ -4,7 +4,7 @@ import { checkLive as ytCheck } from './youtube.js';
 import { checkLive as fbCheck } from './facebook.js';
 import { idInfo } from './platforms.js';
 import { screenshotTargets } from './shot.js';
-import { getConfig, getState, saveState, putImage } from './store.js';
+import { getConfig, getState, saveState, putImage, flagsOf } from './store.js';
 import { notifyEvents } from './telegram.js';
 import { imgSize } from './util.js';
 
@@ -86,7 +86,8 @@ export async function runCheck(env, opts = {}) {
       if (info.roomId) u.roomId = info.roomId;
     }
     st.users[id] = u;
-    if (u.live && !u.unknown) live.push({ id, info });
+    // chỉ chụp ảnh người bật Screen (tiết kiệm quota trình duyệt)
+    if (u.live && !u.unknown && flagsOf(cfg, id).screen) live.push({ id, info });
     u._avatar = info.avatar;
   });
 

@@ -3,7 +3,7 @@ import { getConfig, getState, getImage } from './store.js';
 import { handleTelegram, setupWebhook } from './telegram.js';
 import { fmtTime, fmtDateTime } from './util.js';
 import { idInfo } from './platforms.js';
-import { MAX_USERS } from './store.js';
+import { MAX_USERS, flagsOf } from './store.js';
 import { computeLayout } from './layout.js';
 
 const json = (o, status = 200) =>
@@ -21,8 +21,11 @@ async function trmnlPayload(env, origin) {
 
   const users = list.map(({ id, s }) => {
     const I = idInfo(id);
+    const f = flagsOf(cfg, id);
     return {
       id,
+      screen: f.screen,
+      status: f.status,
       platform: I.P.name,
       user: I.display,
       nickname: s.nickname || I.display,
@@ -41,20 +44,25 @@ async function trmnlPayload(env, origin) {
       since: fmtTime(s.liveSince) || '',
     };
   });
-  // Bố cục collage khi có người live (tính theo tỉ lệ ảnh)
-  const live = users.map((u, i) => ({ i, ar: u.ar, live: u.live })).filter((u) => u.live);
+  // Bố cục collage: chỉ người bật Screen mới có ô; thanh trạng thái cho người bật Status
+  const live = users.map((u, i) => ({ i, ar: u.ar, live: u.live, screen: u.screen })).filter((u) => u.live && u.screen);
+  const offCount = users.filter((u) => u.screen && !u.live).length;
+  const hasStatus = users.some((u) => u.status);
   let layout = null;
   if (live.length) {
-    const sig = 'layout:' + live.map((l) => `${l.i}:${Math.round(l.ar * 50) / 50}`).join(',') + '|' + (users.length - live.length);
+    const sig = 'layout2:' + live.map((l) => `${l.i}:${Math.round(l.ar * 50) / 50}`).join(',') + '|' + offCount + (hasStatus ? 's' : '');
     layout = await env.KV.get(sig, 'json');
     if (!layout) {
-      layout = computeLayout(live.map((l) => ({ i: l.i, ar: Math.round(l.ar * 50) / 50 })), users.length - live.length);
+      layout = computeLayout(live.map((l) => ({ i: l.i, ar: Math.round(l.ar * 50) / 50 })), offCount, hasStatus);
       await env.KV.put(sig, JSON.stringify(layout), { expirationTtl: 7 * 86400 });
     }
   }
   return {
     updated: fmtDateTime(Date.now()),
     layout,
+    has_status: hasStatus,
+    screen_count: users.filter((u) => u.screen).length,
+    status_count: users.filter((u) => u.status).length,
     count: users.length,
     any_live: users.some((u) => u.live),
     users,
