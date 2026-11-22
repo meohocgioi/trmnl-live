@@ -102,14 +102,14 @@ export async function runCheck(env, opts = {}) {
   }
 
   // Ảnh khi live
-  // Chia đều 10 phút trình duyệt/ngày (gói Free) cho cả ngày thức của TRMNL, chừa lại 1 ít cho nút Chụp ngay
+  // Chia đều trần trình duyệt/ngày cho cả ngày thức của TRMNL (paid: đủ để chụp mỗi lượt kiểm tra), chừa lại 1 ít cho nút Chụp ngay
   let canBrowser = false;
   if (env.BROWSER && cfg.shotMode === 'screen' && live.length) {
     const real = await browserUsedSec(env);
     if (real != null) st.budget.cfSec = Math.round(real);
     const usedSec = real != null ? real : st.budget.ms / 1000;
     const avg = st.budget.avgSec || 18;
-    if (forceShot) canBrowser = usedSec < 597;
+    if (forceShot) canBrowser = cfg.plan === 'paid' ? usedSec < cfg.browserDailySec + 600 : usedSec < 597;
     else {
       const cap = cfg.browserDailySec;
       const vn = (now / 60000 + 7 * 60) % 1440; // phút trong ngày giờ VN

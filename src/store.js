@@ -8,7 +8,8 @@ export const DEFAULT_CONFIG = {
   intervalMin: 10,        // bao lâu kiểm tra 1 lần (phút)
   shotMode: 'screen',     // 'screen' = chụp màn hình live bằng trình duyệt, 'cover' = ảnh cover phòng live
   notify: true,           // báo Telegram khi ai đó bắt đầu / kết thúc live
-  browserDailySec: 540,   // quota trình duyệt tự đặt mỗi ngày (gói Free = 600s)
+  plan: 'paid',           // gói Cloudflare Workers: 'paid' (10 giờ trình duyệt/tháng, vượt 0,09 USD/giờ) | 'free' (10 phút/ngày)
+  browserDailySec: 2400,  // trần trình duyệt tự đặt mỗi ngày (paid: 40 phút ≈ tối đa ~1 USD/tháng phụ trội; free: 540)
   ownerId: null,
   flags: {},              // { id: { screen: bool, status: bool } }
 };
@@ -22,6 +23,7 @@ export async function getConfig(env) {
   const c = await env.KV.get('config', 'json');
   const cfg = { ...DEFAULT_CONFIG, ...(c || {}) };
   cfg.users = migrateUsers(cfg.users);
+  if (!c || !c.plan) { cfg.plan = DEFAULT_CONFIG.plan; cfg.browserDailySec = DEFAULT_CONFIG.browserDailySec; }
   return cfg;
 }
 

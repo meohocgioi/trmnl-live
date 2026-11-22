@@ -30,7 +30,6 @@ async function openBrowser(env) {
   for (let k = 0; k < 3; k++) {
     try {
       const lim = await puppeteer.limits(env.BROWSER).catch(() => null);
-      if (lim && lim.usedBrowserTimeSeconds >= 597) throw new Error('hết 10 phút trình duyệt miễn phí của hôm nay (mở lại lúc 07:00)');
       if (lim && lim.allowedBrowserAcquisitions === 0) {
         await sleep(Math.min(25000, (lim.timeUntilNextAllowedBrowserAcquisition || 20000) + 800));
       }
